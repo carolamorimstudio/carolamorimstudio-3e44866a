@@ -5,13 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Calendar, Clock, CheckCircle, XCircle } from 'lucide-react';
-import { getCurrentUser, getTimeSlots, getAppointments, saveAppointment, updateAppointment, updateTimeSlot } from '@/lib/storage';
-import { Appointment } from '@/types';
+import { getCurrentUser, getTimeSlots, getAppointments, saveAppointment, updateAppointment, updateTimeSlot, getServices } from '@/lib/storage';
+import { Appointment, Service } from '@/types';
 import { toast } from 'sonner';
 
 const Agendamentos = () => {
   const navigate = useNavigate();
   const currentUser = getCurrentUser();
+  const [services, setServices] = useState(getServices());
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [availableSlots, setAvailableSlots] = useState(getTimeSlots().filter(s => s.status === 'available'));
   const [myAppointments, setMyAppointments] = useState<Appointment[]>([]);
 
@@ -25,12 +27,16 @@ const Agendamentos = () => {
     setMyAppointments(appointments);
   }, [currentUser, navigate]);
 
-  const handleBooking = (slotId: string, date: string, time: string) => {
+  const handleBooking = (slotId: string, serviceId: string, date: string, time: string) => {
     if (!currentUser) return;
+    
+    const service = services.find(s => s.id === serviceId);
     
     const newAppointment: Appointment = {
       id: Date.now().toString(),
       clientId: currentUser.id,
+      serviceId,
+      serviceName: service?.name,
       date,
       time,
       status: 'active',
@@ -67,6 +73,43 @@ const Agendamentos = () => {
       
       <main className="flex-1 container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-8">
+          {/* Service Selection */}
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Escolha o Serviço
+              </CardTitle>
+              <CardDescription>
+                Selecione o serviço desejado para ver os horários disponíveis
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {services.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  Nenhum serviço disponível no momento
+                </p>
+              ) : (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {services.map((service) => (
+                    <div
+                      key={service.id}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                        selectedService?.id === service.id
+                          ? 'border-primary bg-primary/5 shadow-md'
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => setSelectedService(service)}
+                    >
+                      <h3 className="font-semibold text-lg mb-2">{service.name}</h3>
+                      <p className="text-sm text-muted-foreground mb-3">{service.description}</p>
+                      <p className="font-bold text-primary">{service.price}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* My Appointments */}
           <Card className="shadow-lg">
             <CardHeader>
@@ -93,6 +136,7 @@ const Agendamentos = () => {
                       <div className="flex items-center gap-4">
                         <Calendar className="h-5 w-5 text-primary" />
                         <div>
+                          <p className="font-bold text-primary">{appointment.serviceName}</p>
                           <p className="font-semibold">{appointment.date}</p>
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
                             <Clock className="h-4 w-4" />
@@ -116,47 +160,51 @@ const Agendamentos = () => {
           </Card>
 
           {/* Available Slots */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-primary" />
-                Horários Disponíveis
-              </CardTitle>
-              <CardDescription>
-                Escolha um horário para seu atendimento
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {availableSlots.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">
-                  Não há horários disponíveis no momento
-                </p>
-              ) : (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {availableSlots.map((slot) => (
-                    <div
-                      key={slot.id}
-                      className="p-4 border border-border rounded-lg bg-card hover:shadow-md transition-shadow"
-                    >
-                      <div className="mb-3">
-                        <p className="font-semibold">{slot.date}</p>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          {slot.time}
-                        </p>
-                      </div>
-                      <Button
-                        className="w-full"
-                        onClick={() => handleBooking(slot.id, slot.date, slot.time)}
-                      >
-                        Agendar
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {selectedService && (
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  Horários Disponíveis - {selectedService.name}
+                </CardTitle>
+                <CardDescription>
+                  Escolha um horário para seu atendimento
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {availableSlots.filter(s => s.serviceId === selectedService.id).length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    Não há horários disponíveis para este serviço no momento
+                  </p>
+                ) : (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {availableSlots
+                      .filter(s => s.serviceId === selectedService.id)
+                      .map((slot) => (
+                        <div
+                          key={slot.id}
+                          className="p-4 border border-border rounded-lg bg-card hover:shadow-md transition-shadow"
+                        >
+                          <div className="mb-3">
+                            <p className="font-semibold">{slot.date}</p>
+                            <p className="text-sm text-muted-foreground flex items-center gap-1">
+                              <Clock className="h-4 w-4" />
+                              {slot.time}
+                            </p>
+                          </div>
+                          <Button
+                            className="w-full"
+                            onClick={() => handleBooking(slot.id, selectedService.id, slot.date, slot.time)}
+                          >
+                            Agendar
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
 

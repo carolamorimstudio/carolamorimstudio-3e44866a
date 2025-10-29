@@ -7,8 +7,16 @@ export interface User {
   type: 'admin' | 'client';
 }
 
+export interface Service {
+  id: string;
+  name: string;
+  description: string;
+  price: string;
+}
+
 export interface TimeSlot {
   id: string;
+  serviceId: string;
   date: string;
   time: string;
   status: 'available' | 'booked';
@@ -17,6 +25,8 @@ export interface TimeSlot {
 export interface Appointment {
   id: string;
   clientId: string;
+  serviceId: string;
+  serviceName?: string;
   date: string;
   time: string;
   status: 'active' | 'cancelled';

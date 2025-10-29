@@ -1,8 +1,9 @@
-import { User, TimeSlot, Appointment } from '@/types';
+import { User, TimeSlot, Appointment, Service } from '@/types';
 
 const USERS_KEY = 'carol_studio_users';
 const TIMESLOTS_KEY = 'carol_studio_timeslots';
 const APPOINTMENTS_KEY = 'carol_studio_appointments';
+const SERVICES_KEY = 'carol_studio_services';
 const CURRENT_USER_KEY = 'carol_studio_current_user';
 
 // Initialize with admin user
@@ -111,4 +112,29 @@ export const updateAppointment = (appointmentId: string, updates: Partial<Appoin
 export const deleteAppointment = (appointmentId: string): void => {
   const appointments = getAppointments().filter(a => a.id !== appointmentId);
   localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(appointments));
+};
+
+export const getServices = (): Service[] => {
+  const data = localStorage.getItem(SERVICES_KEY);
+  return data ? JSON.parse(data) : [];
+};
+
+export const saveService = (service: Service): void => {
+  const services = getServices();
+  services.push(service);
+  localStorage.setItem(SERVICES_KEY, JSON.stringify(services));
+};
+
+export const updateService = (serviceId: string, updates: Partial<Service>): void => {
+  const services = getServices();
+  const index = services.findIndex(s => s.id === serviceId);
+  if (index !== -1) {
+    services[index] = { ...services[index], ...updates };
+    localStorage.setItem(SERVICES_KEY, JSON.stringify(services));
+  }
+};
+
+export const deleteService = (serviceId: string): void => {
+  const services = getServices().filter(s => s.id !== serviceId);
+  localStorage.setItem(SERVICES_KEY, JSON.stringify(services));
 };
