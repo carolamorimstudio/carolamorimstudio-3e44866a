@@ -130,15 +130,35 @@ const Agendamentos = () => {
 
   const loadTimeSlots = async () => {
     try {
-      const { data, error } = await supabase
+      // Get all time slots with available status
+      const { data: slots, error: slotsError } = await supabase
         .from('time_slots')
         .select('*, services(*)')
         .eq('status', 'available')
         .order('date', { ascending: true })
         .order('time', { ascending: true });
 
-      if (error) throw error;
-      setAvailableSlots((data || []) as TimeSlot[]);
+      if (slotsError) throw slotsError;
+
+      // Get all active appointments to filter out booked slots
+      const { data: activeAppointments, error: appointmentsError } = await supabase
+        .from('appointments')
+        .select('time_slot_id')
+        .eq('status', 'active');
+
+      if (appointmentsError) throw appointmentsError;
+
+      // Create a Set of booked time slot IDs for fast lookup
+      const bookedSlotIds = new Set(
+        (activeAppointments || []).map(a => a.time_slot_id)
+      );
+
+      // Filter out slots that have active appointments
+      const availableSlots = (slots || []).filter(
+        slot => !bookedSlotIds.has(slot.id)
+      );
+
+      setAvailableSlots(availableSlots as TimeSlot[]);
     } catch (error) {
       console.error('Error loading time slots:', error);
     }
