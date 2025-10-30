@@ -75,6 +75,11 @@ const Admin = () => {
   const [instagramUrl, setInstagramUrl] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
 
+  // States for admin account settings
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
   // Redirect if not admin
   useEffect(() => {
     if (!authLoading && (!user || !isAdmin)) {
@@ -155,15 +160,6 @@ const Admin = () => {
         .order('time', { ascending: true });
 
       if (error) throw error;
-      
-      if (data && data.length > 0) {
-        console.log('📥 CARREGANDO DO BANCO:', {
-          primeira_data_raw: data[0].date,
-          tipo: typeof data[0].date,
-          formatada: formatDateShort(data[0].date)
-        });
-      }
-      
       setTimeSlots((data || []) as TimeSlot[]);
     } catch (error) {
       console.error('Error loading time slots:', error);
@@ -296,18 +292,11 @@ const Admin = () => {
     }
     
     try {
-      // Envia a data EXATAMENTE como está no input (formato YYYY-MM-DD)
-      // SEM conversões, SEM Date(), apenas string pura
-      console.log('💾 ANTES DE SALVAR:', {
-        valor_do_input: newSlotDate,
-        tipo: typeof newSlotDate
-      });
-      
       const { data, error } = await supabase
         .from('time_slots')
         .insert({
           service_id: newSlotServiceId,
-          date: newSlotDate, // String pura do input, sem conversão
+          date: newSlotDate,
           time: newSlotTime,
           status: 'available'
         })
@@ -315,12 +304,6 @@ const Admin = () => {
         .single();
 
       if (error) throw error;
-      
-      console.log('📤 DEPOIS DE SALVAR:', {
-        data_retornada: data.date,
-        tipo: typeof data.date,
-        data_formatada: formatDateShort(data.date)
-      });
       
       setTimeSlots(prev => [...prev, data as TimeSlot]);
       setNewSlotDate('');
@@ -464,6 +447,63 @@ const Admin = () => {
     }
   };
 
+  const handleChangeEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newEmail.trim()) {
+      toast.error('Digite o novo email');
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        email: newEmail
+      });
+
+      if (error) throw error;
+
+      toast.success('Email atualizado! Verifique seu novo email para confirmar a alteração.');
+      setNewEmail('');
+    } catch (error: any) {
+      console.error('Error updating email:', error);
+      toast.error(error.message || 'Erro ao atualizar email');
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!newPassword.trim()) {
+      toast.error('Digite a nova senha');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error('A senha deve ter no mínimo 6 caracteres');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error('As senhas não coincidem');
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) throw error;
+
+      toast.success('Senha atualizada com sucesso!');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error: any) {
+      console.error('Error updating password:', error);
+      toast.error(error.message || 'Erro ao atualizar senha');
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-secondary/20">
@@ -550,24 +590,24 @@ const Admin = () => {
 
           {/* Tabs */}
           <Tabs defaultValue="services" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 h-auto gap-1">
-              <TabsTrigger value="services" className="flex flex-col md:flex-row items-center justify-center gap-1 py-2 px-2">
+            <TabsList className="w-full h-auto gap-1 flex flex-wrap justify-center p-1">
+              <TabsTrigger value="services" className="flex items-center gap-1 py-2 px-3 flex-1 min-w-[100px]">
                 <Plus className="h-4 w-4" />
                 <span className="text-xs md:text-sm">Serviços</span>
               </TabsTrigger>
-              <TabsTrigger value="slots" className="flex flex-col md:flex-row items-center justify-center gap-1 py-2 px-2">
+              <TabsTrigger value="slots" className="flex items-center gap-1 py-2 px-3 flex-1 min-w-[100px]">
                 <Clock className="h-4 w-4" />
                 <span className="text-xs md:text-sm">Horários</span>
               </TabsTrigger>
-              <TabsTrigger value="appointments" className="flex flex-col md:flex-row items-center justify-center gap-1 py-2 px-2">
+              <TabsTrigger value="appointments" className="flex items-center gap-1 py-2 px-3 flex-1 min-w-[100px]">
                 <Calendar className="h-4 w-4" />
                 <span className="text-xs md:text-sm">Agendas</span>
               </TabsTrigger>
-              <TabsTrigger value="clients" className="flex flex-col md:flex-row items-center justify-center gap-1 py-2 px-2">
+              <TabsTrigger value="clients" className="flex items-center gap-1 py-2 px-3 flex-1 min-w-[100px]">
                 <Users className="h-4 w-4" />
                 <span className="text-xs md:text-sm">Clientes</span>
               </TabsTrigger>
-              <TabsTrigger value="settings" className="flex flex-col md:flex-row items-center justify-center gap-1 py-2 px-2">
+              <TabsTrigger value="settings" className="flex items-center gap-1 py-2 px-3 flex-1 min-w-[100px]">
                 <Settings className="h-4 w-4" />
                 <span className="text-xs md:text-sm">Config</span>
               </TabsTrigger>
@@ -849,9 +889,10 @@ const Admin = () => {
 
             {/* Settings Tab */}
             <TabsContent value="settings" className="space-y-4">
+              {/* Redes Sociais */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Configurações do Site</CardTitle>
+                  <CardTitle>Redes Sociais</CardTitle>
                   <CardDescription>
                     Configure links das redes sociais que aparecem no rodapé
                   </CardDescription>
@@ -888,8 +929,80 @@ const Admin = () => {
                   </div>
 
                   <Button onClick={handleSaveSettings} className="w-full md:w-auto">
-                    Salvar Configurações
+                    Salvar Redes Sociais
                   </Button>
+                </CardContent>
+              </Card>
+
+              {/* Alterar Email */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Alterar Email</CardTitle>
+                  <CardDescription>
+                    Atualize o email da sua conta de administrador
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleChangeEmail} className="space-y-4">
+                    <div>
+                      <Label htmlFor="newEmail">Novo Email</Label>
+                      <Input
+                        id="newEmail"
+                        type="email"
+                        placeholder="novo@email.com"
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Você receberá um email de confirmação no novo endereço
+                      </p>
+                    </div>
+                    <Button type="submit" className="w-full md:w-auto">
+                      Alterar Email
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              {/* Alterar Senha */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Alterar Senha</CardTitle>
+                  <CardDescription>
+                    Atualize a senha da sua conta de administrador
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleChangePassword} className="space-y-4">
+                    <div>
+                      <Label htmlFor="newPassword">Nova Senha</Label>
+                      <Input
+                        id="newPassword"
+                        type="password"
+                        placeholder="Mínimo 6 caracteres"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        placeholder="Digite a senha novamente"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                    <Button type="submit" className="w-full md:w-auto">
+                      Alterar Senha
+                    </Button>
+                  </form>
                 </CardContent>
               </Card>
             </TabsContent>

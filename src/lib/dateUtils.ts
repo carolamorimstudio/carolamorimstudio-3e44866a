@@ -35,15 +35,13 @@ export function formatDateShort(dateString: string): string {
   const parts = dateOnly.split('-');
   
   if (parts.length !== 3) {
-    console.error('❌ formatDateShort: formato inválido', dateString);
     return dateString;
   }
   
   const [year, month, day] = parts;
   
   // Validação básica
-  if (!year || !month || !day || year.length !== 4 || month.length > 2 || day.length > 2) {
-    console.error('❌ formatDateShort: partes inválidas', { year, month, day });
+  if (!year || !month || !day || year.length !== 4) {
     return dateString;
   }
   
