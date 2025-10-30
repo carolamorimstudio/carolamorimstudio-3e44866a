@@ -56,6 +56,30 @@ const Agendamentos = () => {
     }
   }, [user, isAdmin]);
 
+  // Set up realtime subscription for time slots
+  useEffect(() => {
+    if (!user || isAdmin) return;
+
+    const timeSlotsChannel = supabase
+      .channel('time-slots-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'time_slots'
+        },
+        () => {
+          loadTimeSlots();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(timeSlotsChannel);
+    };
+  }, [user, isAdmin]);
+
   const loadData = async () => {
     try {
       setDataLoading(true);

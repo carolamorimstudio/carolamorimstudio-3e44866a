@@ -81,6 +81,30 @@ const Admin = () => {
     }
   }, [user, isAdmin]);
 
+  // Set up realtime subscriptions for clients
+  useEffect(() => {
+    if (!user || !isAdmin) return;
+
+    const profilesChannel = supabase
+      .channel('profiles-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles'
+        },
+        () => {
+          loadClients();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(profilesChannel);
+    };
+  }, [user, isAdmin]);
+
   const loadAllData = async () => {
     try {
       setLoading(true);
