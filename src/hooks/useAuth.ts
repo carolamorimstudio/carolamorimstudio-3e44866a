@@ -17,9 +17,8 @@ export function useAuth() {
         
         // Check admin role when session changes
         if (session?.user) {
-          setTimeout(() => {
-            checkAdminRole(session.user.id);
-          }, 0);
+          setLoading(true);
+          checkAdminRole(session.user.id);
         } else {
           setIsAdmin(false);
           setLoading(false);
