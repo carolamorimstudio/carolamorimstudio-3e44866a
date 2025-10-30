@@ -3,8 +3,8 @@ import { Instagram, MessageCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 export const Footer = () => {
-  const [instagramUrl, setInstagramUrl] = useState('https://instagram.com/carolamorimstudio');
-  const [whatsappNumber, setWhatsappNumber] = useState('5511999999999');
+  const [instagramUrl, setInstagramUrl] = useState('');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
 
   useEffect(() => {
     loadSiteSettings();
