@@ -1,14 +1,14 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { LogOut, User, Calendar } from 'lucide-react';
-import { getCurrentUser, setCurrentUser } from '@/lib/storage';
+import { useAuth } from '@/hooks/useAuth';
 
 export const Header = () => {
   const navigate = useNavigate();
-  const currentUser = getCurrentUser();
+  const { user, isAdmin, signOut } = useAuth();
 
-  const handleLogout = () => {
-    setCurrentUser(null);
+  const handleLogout = async () => {
+    await signOut();
     navigate('/login');
   };
 
@@ -22,12 +22,12 @@ export const Header = () => {
         </Link>
         
         <nav className="flex items-center gap-4">
-          {currentUser ? (
+          {user ? (
             <>
               <span className="hidden md:inline text-sm text-muted-foreground">
-                Olá, {currentUser.name}
+                Olá, {user.email?.split('@')[0]}
               </span>
-              {currentUser.type === 'admin' ? (
+              {isAdmin ? (
                 <Button variant="outline" onClick={() => navigate('/admin')}>
                   <User className="h-4 w-4 mr-2" />
                   Painel Admin

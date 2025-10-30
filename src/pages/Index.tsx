@@ -1,21 +1,16 @@
-import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Sparkles, Clock, Heart, Star, Calendar } from 'lucide-react';
-import { initializeStorage, getCurrentUser } from '@/lib/storage';
+import { useAuth } from '@/hooks/useAuth';
 
 const Index = () => {
   const navigate = useNavigate();
-  const currentUser = getCurrentUser();
-
-  useEffect(() => {
-    initializeStorage();
-  }, []);
+  const { user } = useAuth();
 
   const handleBooking = () => {
-    if (currentUser) {
+    if (user) {
       navigate('/agendamentos');
     } else {
       navigate('/login');

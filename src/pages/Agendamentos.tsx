@@ -5,67 +5,197 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Calendar, Clock, CheckCircle, XCircle } from 'lucide-react';
-import { getCurrentUser, getTimeSlots, getAppointments, saveAppointment, updateAppointment, updateTimeSlot, getServices } from '@/lib/storage';
-import { Appointment, Service } from '@/types';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+
+interface Service {
+  id: string;
+  name: string;
+  description: string;
+  price: string;
+}
+
+interface TimeSlot {
+  id: string;
+  service_id: string;
+  date: string;
+  time: string;
+  status: 'available' | 'booked';
+  services?: Service;
+}
+
+interface Appointment {
+  id: string;
+  client_id: string;
+  service_id: string;
+  time_slot_id: string;
+  status: 'active' | 'cancelled';
+  services?: Service;
+  time_slots?: TimeSlot;
+}
 
 const Agendamentos = () => {
   const navigate = useNavigate();
-  const currentUser = getCurrentUser();
-  const [services, setServices] = useState(getServices());
+  const { user, isAdmin, loading } = useAuth();
+  const [services, setServices] = useState<Service[]>([]);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [availableSlots, setAvailableSlots] = useState(getTimeSlots().filter(s => s.status === 'available'));
+  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [myAppointments, setMyAppointments] = useState<Appointment[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
-    if (!currentUser || currentUser.type === 'admin') {
+    if (!loading && (!user || isAdmin)) {
       navigate('/login');
-      return;
     }
-    
-    const appointments = getAppointments().filter(a => a.clientId === currentUser.id && a.status === 'active');
-    setMyAppointments(appointments);
-  }, [currentUser, navigate]);
+  }, [user, isAdmin, loading, navigate]);
 
-  const handleBooking = (slotId: string, serviceId: string, date: string, time: string) => {
-    if (!currentUser) return;
-    
-    const service = services.find(s => s.id === serviceId);
-    
-    const newAppointment: Appointment = {
-      id: Date.now().toString(),
-      clientId: currentUser.id,
-      serviceId,
-      serviceName: service?.name,
-      date,
-      time,
-      status: 'active',
-      clientName: currentUser.name
-    };
-    
-    saveAppointment(newAppointment);
-    updateTimeSlot(slotId, { status: 'booked' });
-    
-    setAvailableSlots(prev => prev.filter(s => s.id !== slotId));
-    setMyAppointments(prev => [...prev, newAppointment]);
-    
-    toast.success('✅ Seu horário foi reservado com sucesso! Te esperamos no Carol Amorim Studio 💕');
+  useEffect(() => {
+    if (user && !isAdmin) {
+      loadData();
+    }
+  }, [user, isAdmin]);
+
+  const loadData = async () => {
+    try {
+      setDataLoading(true);
+      await Promise.all([
+        loadServices(),
+        loadTimeSlots(),
+        loadAppointments()
+      ]);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast.error('Erro ao carregar dados');
+    } finally {
+      setDataLoading(false);
+    }
   };
 
-  const handleCancel = (appointmentId: string, date: string, time: string) => {
-    updateAppointment(appointmentId, { status: 'cancelled' });
-    
-    const slot = getTimeSlots().find(s => s.date === date && s.time === time);
-    if (slot) {
-      updateTimeSlot(slot.id, { status: 'available' });
-      setAvailableSlots(prev => [...prev, slot]);
+  const loadServices = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setServices(data || []);
+    } catch (error) {
+      console.error('Error loading services:', error);
     }
-    
-    setMyAppointments(prev => prev.filter(a => a.id !== appointmentId));
-    toast.success('Agendamento cancelado com sucesso');
   };
 
-  if (!currentUser) return null;
+  const loadTimeSlots = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('time_slots')
+        .select('*, services(*)')
+        .eq('status', 'available')
+        .order('date', { ascending: true })
+        .order('time', { ascending: true });
+
+      if (error) throw error;
+      setAvailableSlots((data || []) as TimeSlot[]);
+    } catch (error) {
+      console.error('Error loading time slots:', error);
+    }
+  };
+
+  const loadAppointments = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*, services(*), time_slots(*)')
+        .eq('client_id', user.id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setMyAppointments((data || []) as Appointment[]);
+    } catch (error) {
+      console.error('Error loading appointments:', error);
+    }
+  };
+
+  const handleBooking = async (slotId: string, serviceId: string) => {
+    if (!user) return;
+    
+    try {
+      // Create appointment
+      const { data: appointment, error: appointmentError } = await supabase
+        .from('appointments')
+        .insert({
+          client_id: user.id,
+          service_id: serviceId,
+          time_slot_id: slotId,
+          status: 'active'
+        })
+        .select('*, services(*), time_slots(*)')
+        .single();
+
+      if (appointmentError) throw appointmentError;
+
+      // Update time slot status
+      const { error: slotError } = await supabase
+        .from('time_slots')
+        .update({ status: 'booked' })
+        .eq('id', slotId);
+
+      if (slotError) throw slotError;
+
+      setAvailableSlots(prev => prev.filter(s => s.id !== slotId));
+      setMyAppointments(prev => [...prev, appointment as Appointment]);
+      
+      toast.success('✅ Seu horário foi reservado com sucesso! Te esperamos no Carol Amorim Studio 💕');
+    } catch (error: any) {
+      console.error('Error booking appointment:', error);
+      toast.error(error.message || 'Erro ao criar agendamento');
+    }
+  };
+
+  const handleCancel = async (appointmentId: string, timeSlotId: string) => {
+    try {
+      // Delete appointment
+      const { error: appointmentError } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', appointmentId);
+
+      if (appointmentError) throw appointmentError;
+
+      // Update time slot status
+      const { error: slotError } = await supabase
+        .from('time_slots')
+        .update({ status: 'available' })
+        .eq('id', timeSlotId);
+
+      if (slotError) throw slotError;
+
+      await loadTimeSlots();
+      setMyAppointments(prev => prev.filter(a => a.id !== appointmentId));
+      
+      toast.success('Agendamento cancelado com sucesso');
+    } catch (error: any) {
+      console.error('Error canceling appointment:', error);
+      toast.error(error.message || 'Erro ao cancelar agendamento');
+    }
+  };
+
+  if (loading || dataLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-secondary/20">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || isAdmin) return null;
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background to-secondary/20">
@@ -136,18 +266,18 @@ const Agendamentos = () => {
                       <div className="flex items-center gap-4">
                         <Calendar className="h-5 w-5 text-primary" />
                         <div>
-                          <p className="font-bold text-primary">{appointment.serviceName}</p>
-                          <p className="font-semibold">{appointment.date}</p>
+                          <p className="font-bold text-primary">{appointment.services?.name}</p>
+                          <p className="font-semibold">{appointment.time_slots?.date}</p>
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
                             <Clock className="h-4 w-4" />
-                            {appointment.time}
+                            {appointment.time_slots?.time}
                           </p>
                         </div>
                       </div>
                       <Button
                         variant="destructive"
                         size="sm"
-                        onClick={() => handleCancel(appointment.id, appointment.date, appointment.time)}
+                        onClick={() => handleCancel(appointment.id, appointment.time_slot_id)}
                       >
                         <XCircle className="h-4 w-4 mr-2" />
                         Cancelar
@@ -172,14 +302,14 @@ const Agendamentos = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {availableSlots.filter(s => s.serviceId === selectedService.id).length === 0 ? (
+                {availableSlots.filter(s => s.service_id === selectedService.id).length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">
                     Não há horários disponíveis para este serviço no momento
                   </p>
                 ) : (
                   <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {availableSlots
-                      .filter(s => s.serviceId === selectedService.id)
+                      .filter(s => s.service_id === selectedService.id)
                       .map((slot) => (
                         <div
                           key={slot.id}
@@ -194,7 +324,7 @@ const Agendamentos = () => {
                           </div>
                           <Button
                             className="w-full"
-                            onClick={() => handleBooking(slot.id, selectedService.id, slot.date, slot.time)}
+                            onClick={() => handleBooking(slot.id, selectedService.id)}
                           >
                             Agendar
                           </Button>
