@@ -186,7 +186,19 @@ const Agendamentos = () => {
     if (!user) return;
     
     try {
-      // Create appointment
+      // First, update time slot status to booked to prevent race conditions
+      const { error: slotError } = await supabase
+        .from('time_slots')
+        .update({ status: 'booked' })
+        .eq('id', slotId)
+        .eq('status', 'available'); // Only update if still available
+
+      if (slotError) {
+        console.error('Error updating time slot:', slotError);
+        throw new Error('Este horário não está mais disponível');
+      }
+
+      // Then create appointment
       const { data: appointment, error: appointmentError } = await supabase
         .from('appointments')
         .insert({
@@ -198,23 +210,33 @@ const Agendamentos = () => {
         .select('*, services(*), time_slots(*)')
         .single();
 
-      if (appointmentError) throw appointmentError;
+      if (appointmentError) {
+        // Rollback time slot status if appointment creation fails
+        await supabase
+          .from('time_slots')
+          .update({ status: 'available' })
+          .eq('id', slotId);
+        
+        // Check if it's a duplicate appointment error
+        if (appointmentError.message?.includes('unique_active_appointment_per_slot')) {
+          throw new Error('Este horário acabou de ser agendado por outro cliente. Por favor, escolha outro horário.');
+        }
+        throw appointmentError;
+      }
 
-      // Update time slot status
-      const { error: slotError } = await supabase
-        .from('time_slots')
-        .update({ status: 'booked' })
-        .eq('id', slotId);
-
-      if (slotError) throw slotError;
-
+      // Remove from available slots and add to my appointments
       setAvailableSlots(prev => prev.filter(s => s.id !== slotId));
       setMyAppointments(prev => [...prev, appointment as Appointment]);
       
       toast.success('✅ Seu horário foi reservado com sucesso! Te esperamos no Carol Amorim Studio 💕');
     } catch (error: any) {
       console.error('Error booking appointment:', error);
-      toast.error(error.message || 'Erro ao criar agendamento');
+      
+      // Reload slots to get fresh data
+      await loadTimeSlots();
+      await loadAppointments();
+      
+      toast.error(error.message || 'Erro ao criar agendamento. Por favor, tente novamente.');
     }
   };
 
