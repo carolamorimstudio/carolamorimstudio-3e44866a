@@ -251,23 +251,31 @@ const Admin = () => {
 
   const handleSaveSettings = async () => {
     try {
-      // Update Instagram URL
+      // Upsert Instagram URL (cria se não existir, atualiza se existir)
       const { error: instagramError } = await supabase
         .from('site_settings')
-        .update({ value: instagramUrl })
-        .eq('key', 'instagram_url');
+        .upsert({ 
+          key: 'instagram_url',
+          value: instagramUrl 
+        }, { 
+          onConflict: 'key' 
+        });
 
       if (instagramError) throw instagramError;
 
-      // Update WhatsApp number
+      // Upsert WhatsApp number (cria se não existir, atualiza se existir)
       const { error: whatsappError } = await supabase
         .from('site_settings')
-        .update({ value: whatsappNumber })
-        .eq('key', 'whatsapp_number');
+        .upsert({ 
+          key: 'whatsapp_number',
+          value: whatsappNumber 
+        }, { 
+          onConflict: 'key' 
+        });
 
       if (whatsappError) throw whatsappError;
 
-      toast.success('Configurações salvas com sucesso!');
+      toast.success('Configurações salvas com sucesso! As mudanças já estão visíveis no rodapé.');
     } catch (error: any) {
       console.error('Error saving settings:', error);
       toast.error(error.message || 'Erro ao salvar configurações');
@@ -542,25 +550,26 @@ const Admin = () => {
 
           {/* Tabs */}
           <Tabs defaultValue="services" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="services">
-                Serviços
+            <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 h-auto gap-1">
+              <TabsTrigger value="services" className="flex flex-col md:flex-row items-center justify-center gap-1 py-2 px-2">
+                <Plus className="h-4 w-4" />
+                <span className="text-xs md:text-sm">Serviços</span>
               </TabsTrigger>
-              <TabsTrigger value="slots">
-                <Clock className="h-4 w-4 mr-2" />
-                Horários
+              <TabsTrigger value="slots" className="flex flex-col md:flex-row items-center justify-center gap-1 py-2 px-2">
+                <Clock className="h-4 w-4" />
+                <span className="text-xs md:text-sm">Horários</span>
               </TabsTrigger>
-              <TabsTrigger value="appointments">
-                <Calendar className="h-4 w-4 mr-2" />
-                Agendamentos
+              <TabsTrigger value="appointments" className="flex flex-col md:flex-row items-center justify-center gap-1 py-2 px-2">
+                <Calendar className="h-4 w-4" />
+                <span className="text-xs md:text-sm">Agendas</span>
               </TabsTrigger>
-              <TabsTrigger value="clients">
-                <Users className="h-4 w-4 mr-2" />
-                Clientes
+              <TabsTrigger value="clients" className="flex flex-col md:flex-row items-center justify-center gap-1 py-2 px-2">
+                <Users className="h-4 w-4" />
+                <span className="text-xs md:text-sm">Clientes</span>
               </TabsTrigger>
-              <TabsTrigger value="settings">
-                <Settings className="h-4 w-4 mr-2" />
-                Configurações
+              <TabsTrigger value="settings" className="flex flex-col md:flex-row items-center justify-center gap-1 py-2 px-2">
+                <Settings className="h-4 w-4" />
+                <span className="text-xs md:text-sm">Config</span>
               </TabsTrigger>
             </TabsList>
 

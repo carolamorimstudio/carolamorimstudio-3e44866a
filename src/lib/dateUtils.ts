@@ -28,16 +28,26 @@ export function formatDateFromDB(dateString: string): string {
 export function formatDateShort(dateString: string): string {
   if (!dateString) return '';
   
-  // Remove qualquer informação de hora se existir
-  const dateOnly = dateString.split('T')[0];
+  // Remove qualquer informação de hora ou timezone se existir
+  const dateOnly = dateString.split('T')[0].trim();
   
-  // Parse direto da string - apenas string manipulation
-  const [year, month, day] = dateOnly.split('-');
+  // Parse direto da string - apenas string manipulation, sem Date()
+  const parts = dateOnly.split('-');
   
-  if (!year || !month || !day) {
+  if (parts.length !== 3) {
+    console.error('❌ formatDateShort: formato inválido', dateString);
+    return dateString;
+  }
+  
+  const [year, month, day] = parts;
+  
+  // Validação básica
+  if (!year || !month || !day || year.length !== 4 || month.length > 2 || day.length > 2) {
+    console.error('❌ formatDateShort: partes inválidas', { year, month, day });
     return dateString;
   }
   
   // Retorna formatação direta - 100% string manipulation
+  // YYYY-MM-DD -> DD/MM/YYYY
   return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
 }
