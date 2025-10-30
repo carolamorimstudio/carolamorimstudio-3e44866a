@@ -56,7 +56,7 @@ const Agendamentos = () => {
     }
   }, [user, isAdmin]);
 
-  // Set up realtime subscription for time slots
+  // Set up realtime subscription for time slots and appointments
   useEffect(() => {
     if (!user || isAdmin) return;
 
@@ -69,14 +69,32 @@ const Agendamentos = () => {
           schema: 'public',
           table: 'time_slots'
         },
-        () => {
+        (payload) => {
+          console.log('Time slot changed:', payload);
           loadTimeSlots();
+        }
+      )
+      .subscribe();
+
+    const appointmentsChannel = supabase
+      .channel('appointments-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'appointments'
+        },
+        (payload) => {
+          console.log('Appointment changed:', payload);
+          loadAppointments();
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(timeSlotsChannel);
+      supabase.removeChannel(appointmentsChannel);
     };
   }, [user, isAdmin]);
 
