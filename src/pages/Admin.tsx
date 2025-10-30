@@ -314,8 +314,10 @@ const Admin = () => {
 
   const handleDeleteClient = async (userId: string) => {
     try {
-      // Delete user from auth (this will cascade delete profile and roles)
-      const { error } = await supabase.auth.admin.deleteUser(userId);
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('user_id', userId);
 
       if (error) throw error;
 
@@ -323,7 +325,7 @@ const Admin = () => {
       toast.success('Cliente removido');
     } catch (error: any) {
       console.error('Error deleting client:', error);
-      toast.error('Apenas super admins podem remover usuários');
+      toast.error(error.message || 'Erro ao remover cliente');
     }
   };
 
