@@ -155,6 +155,13 @@ const Admin = () => {
         .order('time', { ascending: true });
 
       if (error) throw error;
+      
+      console.log('📥 Dados recebidos do banco:', {
+        primeira_data_raw: data?.[0]?.date,
+        tipo: typeof data?.[0]?.date,
+        total_slots: data?.length
+      });
+      
       setTimeSlots((data || []) as TimeSlot[]);
     } catch (error) {
       console.error('Error loading time slots:', error);
@@ -282,6 +289,12 @@ const Admin = () => {
       // Garante que a data seja salva como data local, sem conversão UTC
       const localDate = prepareLocalDate(newSlotDate);
       
+      console.log('💾 Salvando:', {
+        data_input: newSlotDate,
+        data_preparada: localDate,
+        hora: newSlotTime
+      });
+      
       const { data, error } = await supabase
         .from('time_slots')
         .insert({
@@ -294,6 +307,12 @@ const Admin = () => {
         .single();
 
       if (error) throw error;
+      
+      console.log('📤 Retorno do banco:', {
+        data_retornada: data.date,
+        tipo: typeof data.date,
+        formatada: formatDateShort(data.date)
+      });
       
       setTimeSlots(prev => [...prev, data as TimeSlot]);
       setNewSlotDate('');
