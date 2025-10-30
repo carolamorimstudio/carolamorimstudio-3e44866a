@@ -59,6 +59,39 @@ export type Database = {
           },
         ]
       }
+      email_notifications: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          notification_type: string
+          sent_at: string
+          sent_to: string
+          status: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          notification_type: string
+          sent_at?: string
+          sent_to: string
+          status?: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          notification_type?: string
+          sent_at?: string
+          sent_to?: string
+          status?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

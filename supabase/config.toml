@@ -1,1 +1,7 @@
 project_id = "gsvaitbqkmrsdswzfrmh"
+
+[functions.send-appointment-emails]
+verify_jwt = false
+
+[functions.check-appointments]
+verify_jwt = false
