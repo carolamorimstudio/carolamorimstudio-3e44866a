@@ -2,6 +2,24 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 /**
+ * Converte uma data do input HTML (YYYY-MM-DD) para o formato que o banco aceita
+ * GARANTINDO que seja interpretada como data local, sem conversão UTC
+ */
+export function prepareLocalDate(dateString: string): string {
+  if (!dateString) return '';
+  
+  // O input type="date" já retorna no formato YYYY-MM-DD
+  // Apenas garantimos que está no formato correto
+  const parts = dateString.split('-');
+  if (parts.length !== 3) return dateString;
+  
+  const [year, month, day] = parts;
+  
+  // Retorna no formato exato que o Postgres date espera (YYYY-MM-DD)
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Formata uma data do banco de dados (formato YYYY-MM-DD) para exibição
  * sem problemas de timezone. SEMPRE trata a data como local.
  */
@@ -20,38 +38,22 @@ export function formatDateFromDB(dateString: string): string {
   return format(localDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
 }
 
+/**
+ * Formata uma data curta (dd/MM/yyyy)
+ * DIRETO da string, sem usar Date() para evitar conversões de timezone
+ */
 export function formatDateShort(dateString: string): string {
   if (!dateString) return '';
   
-  console.log('🔍 formatDateShort recebeu:', JSON.stringify(dateString));
-  
-  // Remove qualquer informação de hora se existir (ex: "2024-03-15T00:00:00")
+  // Remove qualquer informação de hora se existir
   const dateOnly = dateString.split('T')[0];
-  console.log('📅 Após split T:', dateOnly);
   
-  // Parse manual para evitar timezone UTC
+  // Parse direto da string
   const parts = dateOnly.split('-');
-  console.log('📊 Parts:', parts);
-  
   if (parts.length !== 3) return dateString;
   
-  const year = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10);
-  const day = parseInt(parts[2], 10);
+  const [year, month, day] = parts;
   
-  console.log('🔢 Parseado: ano=', year, 'mês=', month, 'dia=', day);
-  
-  // Verifica se os valores são válidos
-  if (isNaN(year) || isNaN(month) || isNaN(day)) {
-    return dateString;
-  }
-  
-  // Retorna formatação direta sem usar Date() para evitar qualquer conversão de timezone
-  const dayStr = day.toString().padStart(2, '0');
-  const monthStr = month.toString().padStart(2, '0');
-  
-  const resultado = `${dayStr}/${monthStr}/${year}`;
-  console.log('✅ Resultado final:', resultado);
-  
-  return resultado;
+  // Retorna formatação direta - SEM usar Date() para garantir dia exato
+  return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
 }

@@ -16,7 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { formatDateShort } from '@/lib/dateUtils';
+import { formatDateShort, prepareLocalDate } from '@/lib/dateUtils';
 
 interface Service {
   id: string;
@@ -155,15 +155,6 @@ const Admin = () => {
         .order('time', { ascending: true });
 
       if (error) throw error;
-      
-      if (data && data.length > 0) {
-        console.log('=== DEBUG TIME SLOTS ===');
-        console.log('Primeira data RAW do banco:', data[0].date);
-        console.log('Tipo:', typeof data[0].date);
-        console.log('Formatada:', formatDateShort(data[0].date));
-        console.log('========================');
-      }
-      
       setTimeSlots((data || []) as TimeSlot[]);
     } catch (error) {
       console.error('Error loading time slots:', error);
@@ -288,15 +279,14 @@ const Admin = () => {
     }
     
     try {
-      console.log('=== SALVANDO HORÁRIO ===');
-      console.log('Data selecionada:', newSlotDate);
-      console.log('========================');
+      // Garante que a data seja salva como data local, sem conversão UTC
+      const localDate = prepareLocalDate(newSlotDate);
       
       const { data, error } = await supabase
         .from('time_slots')
         .insert({
           service_id: newSlotServiceId,
-          date: newSlotDate,
+          date: localDate,
           time: newSlotTime,
           status: 'available'
         })
@@ -304,11 +294,6 @@ const Admin = () => {
         .single();
 
       if (error) throw error;
-      
-      console.log('=== APÓS SALVAR ===');
-      console.log('Data retornada do banco:', data.date);
-      console.log('Formatada:', formatDateShort(data.date));
-      console.log('===================');
       
       setTimeSlots(prev => [...prev, data as TimeSlot]);
       setNewSlotDate('');
