@@ -63,7 +63,33 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_public: boolean | null
           name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_public?: boolean | null
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_public?: boolean | null
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles_private: {
+        Row: {
+          created_at: string
+          id: string
           phone: string | null
           updated_at: string
           user_id: string
@@ -71,7 +97,6 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
-          name: string
           phone?: string | null
           updated_at?: string
           user_id: string
@@ -79,7 +104,6 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
-          name?: string
           phone?: string | null
           updated_at?: string
           user_id?: string
