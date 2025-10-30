@@ -25,35 +25,21 @@ export function formatDateFromDB(dateString: string): string {
  * SEMPRE trata a data como local para evitar diferença de um dia
  */
 export function formatDateShort(dateString: string): string {
-  if (!dateString) {
-    console.log('⚠️ formatDateShort: string vazia');
-    return '';
-  }
-  
-  console.log('🔄 formatDateShort INPUT:', dateString, 'tipo:', typeof dateString);
+  if (!dateString) return '';
   
   // Remove qualquer informação de hora se existir (ex: "2024-03-15T00:00:00")
   const dateOnly = dateString.split('T')[0];
-  console.log('📋 Data após split T:', dateOnly);
   
   // Parse manual para evitar timezone UTC
   const parts = dateOnly.split('-');
-  console.log('🔢 Parts após split -:', parts);
-  
-  if (parts.length !== 3) {
-    console.log('❌ Formato inválido, retornando original');
-    return dateString;
-  }
+  if (parts.length !== 3) return dateString;
   
   const year = parseInt(parts[0], 10);
   const month = parseInt(parts[1], 10);
   const day = parseInt(parts[2], 10);
   
-  console.log('📊 Valores parseados:', { year, month, day });
-  
   // Verifica se os valores são válidos
   if (isNaN(year) || isNaN(month) || isNaN(day)) {
-    console.log('❌ Valores NaN, retornando original');
     return dateString;
   }
   
@@ -61,8 +47,5 @@ export function formatDateShort(dateString: string): string {
   const dayStr = day.toString().padStart(2, '0');
   const monthStr = month.toString().padStart(2, '0');
   
-  const result = `${dayStr}/${monthStr}/${year}`;
-  console.log('✅ formatDateShort OUTPUT:', result);
-  
-  return result;
+  return `${dayStr}/${monthStr}/${year}`;
 }
