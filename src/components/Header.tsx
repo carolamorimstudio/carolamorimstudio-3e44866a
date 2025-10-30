@@ -8,8 +8,13 @@ export const Header = () => {
   const { user, isAdmin, signOut } = useAuth();
 
   const handleLogout = async () => {
-    await signOut();
-    navigate('/login');
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      navigate('/login');
+    }
   };
 
   return (
