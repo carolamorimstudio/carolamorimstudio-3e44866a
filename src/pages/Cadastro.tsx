@@ -9,7 +9,6 @@ import { Footer } from '@/components/Footer';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useRecaptcha } from '@/hooks/useRecaptcha';
 
 const Cadastro = () => {
   const navigate = useNavigate();
@@ -19,7 +18,6 @@ const Cadastro = () => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const { isReady: recaptchaReady, executeRecaptcha } = useRecaptcha();
 
   // Redirect authenticated users
   useEffect(() => {
@@ -33,15 +31,6 @@ const Cadastro = () => {
     setSubmitting(true);
     
     try {
-      // Execute reCAPTCHA before signup
-      const captchaToken = await executeRecaptcha();
-      
-      if (!captchaToken) {
-        toast.error('Erro na verificação de segurança. Tente novamente.');
-        setSubmitting(false);
-        return;
-      }
-
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -50,16 +39,13 @@ const Cadastro = () => {
             name,
             phone
           },
-          emailRedirectTo: `${window.location.origin}/`,
-          captchaToken
+          emailRedirectTo: `${window.location.origin}/`
         }
       });
 
       if (error) {
         if (error.message.includes('User already registered')) {
           toast.error('Este e-mail já está cadastrado');
-        } else if (error.message.includes('captcha')) {
-          toast.error('Erro na verificação de segurança. Recarregue a página e tente novamente.');
         } else {
           toast.error(error.message);
         }
