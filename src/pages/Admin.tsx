@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { Calendar, Users, Clock, Trash2, Plus, AlertCircle } from 'lucide-react';
+import { Calendar, Users, Clock, Trash2, Plus, AlertCircle, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -69,6 +69,9 @@ const Admin = () => {
   const [servicePrice, setServicePrice] = useState('');
   const [editingService, setEditingService] = useState<Service | null>(null);
 
+  const [instagramUrl, setInstagramUrl] = useState('');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+
   // Redirect if not admin
   useEffect(() => {
     if (!authLoading && (!user || !isAdmin)) {
@@ -114,7 +117,8 @@ const Admin = () => {
         loadServices(),
         loadTimeSlots(),
         loadAppointments(),
-        loadClients()
+        loadClients(),
+        loadSiteSettings()
       ]);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -198,6 +202,51 @@ const Admin = () => {
     } catch (error) {
       console.error('Error loading clients:', error);
       toast.error('Erro ao carregar clientes');
+    }
+  };
+
+  const loadSiteSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('site_settings')
+        .select('key, value');
+
+      if (error) throw error;
+
+      const settings = data || [];
+      const instagram = settings.find(s => s.key === 'instagram_url');
+      const whatsapp = settings.find(s => s.key === 'whatsapp_number');
+
+      setInstagramUrl(instagram?.value || '');
+      setWhatsappNumber(whatsapp?.value || '');
+    } catch (error) {
+      console.error('Error loading site settings:', error);
+      toast.error('Erro ao carregar configurações');
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    try {
+      // Update Instagram URL
+      const { error: instagramError } = await supabase
+        .from('site_settings')
+        .update({ value: instagramUrl })
+        .eq('key', 'instagram_url');
+
+      if (instagramError) throw instagramError;
+
+      // Update WhatsApp number
+      const { error: whatsappError } = await supabase
+        .from('site_settings')
+        .update({ value: whatsappNumber })
+        .eq('key', 'whatsapp_number');
+
+      if (whatsappError) throw whatsappError;
+
+      toast.success('Configurações salvas com sucesso!');
+    } catch (error: any) {
+      console.error('Error saving settings:', error);
+      toast.error(error.message || 'Erro ao salvar configurações');
     }
   };
 
@@ -456,7 +505,7 @@ const Admin = () => {
 
           {/* Tabs */}
           <Tabs defaultValue="services" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="services">
                 Serviços
               </TabsTrigger>
@@ -471,6 +520,10 @@ const Admin = () => {
               <TabsTrigger value="clients">
                 <Users className="h-4 w-4 mr-2" />
                 Clientes
+              </TabsTrigger>
+              <TabsTrigger value="settings">
+                <Settings className="h-4 w-4 mr-2" />
+                Configurações
               </TabsTrigger>
             </TabsList>
 
@@ -744,6 +797,53 @@ const Admin = () => {
                       ))}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Settings Tab */}
+            <TabsContent value="settings" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Configurações do Site</CardTitle>
+                  <CardDescription>
+                    Configure links das redes sociais que aparecem no rodapé
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="instagramUrl">Link do Instagram</Label>
+                      <Input
+                        id="instagramUrl"
+                        type="url"
+                        placeholder="https://instagram.com/seu_perfil"
+                        value={instagramUrl}
+                        onChange={(e) => setInstagramUrl(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Cole o link completo do seu perfil do Instagram
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="whatsappNumber">Número do WhatsApp</Label>
+                      <Input
+                        id="whatsappNumber"
+                        type="tel"
+                        placeholder="5511999999999"
+                        value={whatsappNumber}
+                        onChange={(e) => setWhatsappNumber(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Digite apenas números com código do país e DDD (ex: 5511999999999)
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button onClick={handleSaveSettings} className="w-full md:w-auto">
+                    Salvar Configurações
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>
