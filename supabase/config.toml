@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.check-appointments]
 verify_jwt = false
+
+[functions.cleanup-past-appointments]
+verify_jwt = false
+
+[functions.delete-user]
+verify_jwt = true
