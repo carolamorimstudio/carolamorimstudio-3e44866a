@@ -45,7 +45,9 @@ interface Profile {
   id: string;
   user_id: string;
   name: string;
-  phone: string | null;
+  profiles_private?: {
+    phone: string | null;
+  };
 }
 
 const Admin = () => {
@@ -171,13 +173,28 @@ const Admin = () => {
 
   const loadClients = async () => {
     try {
-      const { data, error } = await supabase
+      // Load profiles
+      const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setClients(data || []);
+      if (profilesError) throw profilesError;
+
+      // Load private data for admins
+      const { data: privateData, error: privateError } = await supabase
+        .from('profiles_private')
+        .select('user_id, phone');
+
+      if (privateError) throw privateError;
+
+      // Merge the data
+      const mergedClients = (profilesData || []).map(profile => ({
+        ...profile,
+        profiles_private: privateData?.find(pd => pd.user_id === profile.user_id) || null
+      }));
+
+      setClients(mergedClients);
     } catch (error) {
       console.error('Error loading clients:', error);
       toast.error('Erro ao carregar clientes');
@@ -714,7 +731,7 @@ const Admin = () => {
                         >
                           <div>
                             <p className="font-medium">{client.name}</p>
-                            <p className="text-sm text-muted-foreground">{client.phone || 'Sem telefone'}</p>
+                            <p className="text-sm text-muted-foreground">{client.profiles_private?.phone || 'Sem telefone'}</p>
                           </div>
                           <Button
                             variant="destructive"
