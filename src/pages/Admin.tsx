@@ -16,7 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { formatDateShort, prepareLocalDate } from '@/lib/dateUtils';
+import { formatDateShort } from '@/lib/dateUtils';
 
 interface Service {
   id: string;
@@ -156,11 +156,13 @@ const Admin = () => {
 
       if (error) throw error;
       
-      console.log('📥 Dados recebidos do banco:', {
-        primeira_data_raw: data?.[0]?.date,
-        tipo: typeof data?.[0]?.date,
-        total_slots: data?.length
-      });
+      if (data && data.length > 0) {
+        console.log('📥 CARREGANDO DO BANCO:', {
+          primeira_data_raw: data[0].date,
+          tipo: typeof data[0].date,
+          formatada: formatDateShort(data[0].date)
+        });
+      }
       
       setTimeSlots((data || []) as TimeSlot[]);
     } catch (error) {
@@ -286,20 +288,18 @@ const Admin = () => {
     }
     
     try {
-      // Garante que a data seja salva como data local, sem conversão UTC
-      const localDate = prepareLocalDate(newSlotDate);
-      
-      console.log('💾 Salvando:', {
-        data_input: newSlotDate,
-        data_preparada: localDate,
-        hora: newSlotTime
+      // Envia a data EXATAMENTE como está no input (formato YYYY-MM-DD)
+      // SEM conversões, SEM Date(), apenas string pura
+      console.log('💾 ANTES DE SALVAR:', {
+        valor_do_input: newSlotDate,
+        tipo: typeof newSlotDate
       });
       
       const { data, error } = await supabase
         .from('time_slots')
         .insert({
           service_id: newSlotServiceId,
-          date: localDate,
+          date: newSlotDate, // String pura do input, sem conversão
           time: newSlotTime,
           status: 'available'
         })
@@ -308,10 +308,10 @@ const Admin = () => {
 
       if (error) throw error;
       
-      console.log('📤 Retorno do banco:', {
+      console.log('📤 DEPOIS DE SALVAR:', {
         data_retornada: data.date,
         tipo: typeof data.date,
-        formatada: formatDateShort(data.date)
+        data_formatada: formatDateShort(data.date)
       });
       
       setTimeSlots(prev => [...prev, data as TimeSlot]);
