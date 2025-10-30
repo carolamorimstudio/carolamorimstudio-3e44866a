@@ -245,29 +245,37 @@ const Agendamentos = () => {
 
   const handleCancel = async (appointmentId: string, timeSlotId: string) => {
     try {
-      // Delete appointment
+      console.log('🗑️ Cancelando agendamento:', appointmentId);
+      
+      // Delete appointment - o trigger automaticamente libera o time_slot
       const { error: appointmentError } = await supabase
         .from('appointments')
         .delete()
         .eq('id', appointmentId);
 
-      if (appointmentError) throw appointmentError;
+      if (appointmentError) {
+        console.error('❌ Erro ao deletar appointment:', appointmentError);
+        throw appointmentError;
+      }
 
-      // Update time slot status
-      const { error: slotError } = await supabase
-        .from('time_slots')
-        .update({ status: 'available' })
-        .eq('id', timeSlotId);
-
-      if (slotError) throw slotError;
-
-      await loadTimeSlots();
-      setMyAppointments(prev => prev.filter(a => a.id !== appointmentId));
+      console.log('✅ Appointment deletado com sucesso');
+      
+      // Aguarda um momento para o trigger processar
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Recarrega todos os dados para garantir sincronização
+      await Promise.all([
+        loadTimeSlots(),
+        loadAppointments()
+      ]);
       
       toast.success('Agendamento cancelado com sucesso');
     } catch (error: any) {
       console.error('Error canceling appointment:', error);
       toast.error(error.message || 'Erro ao cancelar agendamento');
+      
+      // Recarrega dados em caso de erro para garantir estado correto
+      await loadAppointments();
     }
   };
 
