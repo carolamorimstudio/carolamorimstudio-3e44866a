@@ -35,14 +35,28 @@ const Login = () => {
     setSubmitting(true);
     
     try {
+      // Execute reCAPTCHA before login
+      const captchaToken = await executeRecaptcha();
+      
+      if (!captchaToken) {
+        toast.error('Erro na verificação de segurança. Tente novamente.');
+        setSubmitting(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        password
+        password,
+        options: {
+          captchaToken
+        }
       });
 
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
           toast.error('E-mail ou senha incorretos');
+        } else if (error.message.includes('captcha')) {
+          toast.error('Erro na verificação de segurança. Recarregue a página e tente novamente.');
         } else {
           toast.error(error.message);
         }

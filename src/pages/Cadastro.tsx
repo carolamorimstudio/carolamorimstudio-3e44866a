@@ -33,6 +33,15 @@ const Cadastro = () => {
     setSubmitting(true);
     
     try {
+      // Execute reCAPTCHA before signup
+      const captchaToken = await executeRecaptcha();
+      
+      if (!captchaToken) {
+        toast.error('Erro na verificação de segurança. Tente novamente.');
+        setSubmitting(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -41,13 +50,16 @@ const Cadastro = () => {
             name,
             phone
           },
-          emailRedirectTo: `${window.location.origin}/`
+          emailRedirectTo: `${window.location.origin}/`,
+          captchaToken
         }
       });
 
       if (error) {
         if (error.message.includes('User already registered')) {
           toast.error('Este e-mail já está cadastrado');
+        } else if (error.message.includes('captcha')) {
+          toast.error('Erro na verificação de segurança. Recarregue a página e tente novamente.');
         } else {
           toast.error(error.message);
         }
