@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,38 +6,74 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { saveUser, findUserByEmail } from '@/lib/storage';
-import { User } from '@/types';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 const Cadastro = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSignup = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (findUserByEmail(email)) {
-      toast.error('Este e-mail já está cadastrado');
-      return;
+  // Redirect authenticated users
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/agendamentos');
     }
+  }, [user, loading, navigate]);
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
     
-    const newUser: User = {
-      id: Date.now().toString(),
-      name,
-      email,
-      phone,
-      password,
-      type: 'client'
-    };
-    
-    saveUser(newUser);
-    toast.success('Conta criada com sucesso! Faça login para continuar.');
-    navigate('/login');
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            phone
+          },
+          emailRedirectTo: `${window.location.origin}/`
+        }
+      });
+
+      if (error) {
+        if (error.message.includes('User already registered')) {
+          toast.error('Este e-mail já está cadastrado');
+        } else {
+          toast.error(error.message);
+        }
+        return;
+      }
+
+      if (data.user) {
+        toast.success('Conta criada com sucesso! Faça login para continuar.');
+        navigate('/login');
+      }
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      toast.error('Erro ao criar conta');
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-secondary/20">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background to-secondary/20">
@@ -64,6 +100,7 @@ const Cadastro = () => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
+                  disabled={submitting}
                 />
               </div>
               
@@ -76,6 +113,7 @@ const Cadastro = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={submitting}
                 />
               </div>
               
@@ -88,6 +126,7 @@ const Cadastro = () => {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   required
+                  disabled={submitting}
                 />
               </div>
               
@@ -101,11 +140,12 @@ const Cadastro = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
+                  disabled={submitting}
                 />
               </div>
               
-              <Button type="submit" className="w-full">
-                Criar Conta
+              <Button type="submit" className="w-full" disabled={submitting}>
+                {submitting ? 'Criando conta...' : 'Criar Conta'}
               </Button>
               
               <div className="text-center">

@@ -7,136 +7,261 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { Calendar, Users, Clock, Trash2, Plus } from 'lucide-react';
-import { getCurrentUser, getUsers, getTimeSlots, getAppointments, saveTimeSlot, deleteTimeSlot, deleteUser, deleteAppointment, updateUser, getServices, saveService, updateService, deleteService } from '@/lib/storage';
-import { TimeSlot, Service } from '@/types';
+import { Calendar, Users, Clock, Trash2, Plus, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+
+interface Service {
+  id: string;
+  name: string;
+  description: string;
+  price: string;
+}
+
+interface TimeSlot {
+  id: string;
+  service_id: string;
+  date: string;
+  time: string;
+  status: 'available' | 'booked';
+  services?: Service;
+}
+
+interface Appointment {
+  id: string;
+  client_id: string;
+  service_id: string;
+  time_slot_id: string;
+  status: 'active' | 'cancelled';
+  services?: Service;
+  time_slots?: TimeSlot;
+}
+
+interface Profile {
+  id: string;
+  user_id: string;
+  name: string;
+  phone: string | null;
+}
 
 const Admin = () => {
   const navigate = useNavigate();
-  const currentUser = getCurrentUser();
-  const [clients, setClients] = useState(getUsers().filter(u => u.type === 'client'));
-  const [timeSlots, setTimeSlots] = useState(getTimeSlots());
-  const [appointments, setAppointments] = useState(getAppointments());
-  const [services, setServices] = useState(getServices());
+  const { user, loading: authLoading, isAdmin } = useAuth();
+  
+  const [services, setServices] = useState<Service[]>([]);
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [clients, setClients] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(true);
   
   const [newSlotDate, setNewSlotDate] = useState('');
   const [newSlotTime, setNewSlotTime] = useState('');
   const [newSlotServiceId, setNewSlotServiceId] = useState('');
-  
-  const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   
   const [serviceName, setServiceName] = useState('');
   const [serviceDescription, setServiceDescription] = useState('');
   const [servicePrice, setServicePrice] = useState('');
   const [editingService, setEditingService] = useState<Service | null>(null);
 
+  // Redirect if not admin
   useEffect(() => {
-    if (!currentUser || currentUser.type !== 'admin') {
+    if (!authLoading && (!user || !isAdmin)) {
       navigate('/login');
-      return;
     }
-  }, [currentUser, navigate]);
+  }, [user, isAdmin, authLoading, navigate]);
 
-  const handleAddSlot = (e: React.FormEvent) => {
+  // Load data when authenticated
+  useEffect(() => {
+    if (user && isAdmin) {
+      loadAllData();
+    }
+  }, [user, isAdmin]);
+
+  const loadAllData = async () => {
+    try {
+      setLoading(true);
+      await Promise.all([
+        loadServices(),
+        loadTimeSlots(),
+        loadAppointments(),
+        loadClients()
+      ]);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast.error('Erro ao carregar dados');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadServices = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setServices(data || []);
+    } catch (error) {
+      console.error('Error loading services:', error);
+      toast.error('Erro ao carregar serviços');
+    }
+  };
+
+  const loadTimeSlots = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('time_slots')
+        .select('*, services(*)')
+        .order('date', { ascending: true })
+        .order('time', { ascending: true });
+
+      if (error) throw error;
+      setTimeSlots((data || []) as TimeSlot[]);
+    } catch (error) {
+      console.error('Error loading time slots:', error);
+      toast.error('Erro ao carregar horários');
+    }
+  };
+
+  const loadAppointments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*, services(*), time_slots(*)')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAppointments((data || []) as Appointment[]);
+    } catch (error) {
+      console.error('Error loading appointments:', error);
+      toast.error('Erro ao carregar agendamentos');
+    }
+  };
+
+  const loadClients = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setClients(data || []);
+    } catch (error) {
+      console.error('Error loading clients:', error);
+      toast.error('Erro ao carregar clientes');
+    }
+  };
+
+  const handleAddSlot = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!newSlotServiceId) {
       toast.error('Selecione um serviço');
       return;
     }
-    
-    const newSlot: TimeSlot = {
-      id: Date.now().toString(),
-      serviceId: newSlotServiceId,
-      date: newSlotDate,
-      time: newSlotTime,
-      status: 'available'
-    };
-    
-    saveTimeSlot(newSlot);
-    setTimeSlots(prev => [...prev, newSlot]);
-    setNewSlotDate('');
-    setNewSlotTime('');
-    setNewSlotServiceId('');
-    toast.success('Horário adicionado com sucesso');
-  };
 
-  const handleDeleteSlot = (slotId: string) => {
-    deleteTimeSlot(slotId);
-    setTimeSlots(prev => prev.filter(s => s.id !== slotId));
-    toast.success('Horário removido');
-  };
-
-  const handleDeleteClient = (userId: string) => {
-    deleteUser(userId);
-    setClients(prev => prev.filter(u => u.id !== userId));
-    toast.success('Cliente removido');
-  };
-
-  const handleDeleteAppointment = (appointmentId: string) => {
-    deleteAppointment(appointmentId);
-    setAppointments(prev => prev.filter(a => a.id !== appointmentId));
-    toast.success('Agendamento removido');
-  };
-
-  const handleUpdateCredentials = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!currentUser) return;
-    
-    if (newPassword && newPassword !== confirmPassword) {
-      toast.error('As senhas não coincidem');
+    if (services.length === 0) {
+      toast.error('Nenhum serviço disponível. Por favor, crie um serviço primeiro.');
       return;
     }
     
-    const updates: Partial<typeof currentUser> = {};
-    if (newEmail) updates.email = newEmail;
-    if (newPassword) updates.password = newPassword;
-    
-    if (Object.keys(updates).length === 0) {
-      toast.error('Preencha pelo menos um campo');
-      return;
+    try {
+      const { data, error } = await supabase
+        .from('time_slots')
+        .insert({
+          service_id: newSlotServiceId,
+          date: newSlotDate,
+          time: newSlotTime,
+          status: 'available'
+        })
+        .select('*, services(*)')
+        .single();
+
+      if (error) throw error;
+
+      setTimeSlots(prev => [...prev, data as TimeSlot]);
+      setNewSlotDate('');
+      setNewSlotTime('');
+      setNewSlotServiceId('');
+      
+      const serviceName = data.services?.name || 'o serviço selecionado';
+      toast.success(`✅ Horário criado com sucesso para ${serviceName}`);
+    } catch (error: any) {
+      console.error('Error adding slot:', error);
+      toast.error(error.message || 'Erro ao criar horário');
     }
-    
-    updateUser(currentUser.id, updates);
-    setNewEmail('');
-    setNewPassword('');
-    setConfirmPassword('');
-    toast.success('✅ Suas credenciais foram atualizadas com sucesso.');
   };
 
-  const handleSaveService = (e: React.FormEvent) => {
+  const handleDeleteSlot = async (slotId: string) => {
+    try {
+      const { error } = await supabase
+        .from('time_slots')
+        .delete()
+        .eq('id', slotId);
+
+      if (error) throw error;
+
+      setTimeSlots(prev => prev.filter(s => s.id !== slotId));
+      toast.success('Horário removido');
+    } catch (error: any) {
+      console.error('Error deleting slot:', error);
+      toast.error(error.message || 'Erro ao remover horário');
+    }
+  };
+
+  const handleSaveService = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (editingService) {
-      updateService(editingService.id, {
-        name: serviceName,
-        description: serviceDescription,
-        price: servicePrice
-      });
-      setServices(prev => prev.map(s => s.id === editingService.id ? { ...s, name: serviceName, description: serviceDescription, price: servicePrice } : s));
-      toast.success('Serviço atualizado com sucesso');
-      setEditingService(null);
-    } else {
-      const newService: Service = {
-        id: Date.now().toString(),
-        name: serviceName,
-        description: serviceDescription,
-        price: servicePrice
-      };
-      saveService(newService);
-      setServices(prev => [...prev, newService]);
-      toast.success('Serviço adicionado com sucesso');
+    try {
+      if (editingService) {
+        const { data, error } = await supabase
+          .from('services')
+          .update({
+            name: serviceName,
+            description: serviceDescription,
+            price: servicePrice
+          })
+          .eq('id', editingService.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setServices(prev => prev.map(s => s.id === editingService.id ? data : s));
+        toast.success('Serviço atualizado com sucesso');
+        setEditingService(null);
+      } else {
+        const { data, error } = await supabase
+          .from('services')
+          .insert({
+            name: serviceName,
+            description: serviceDescription,
+            price: servicePrice
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setServices(prev => [...prev, data]);
+        toast.success('Serviço adicionado com sucesso');
+      }
+      
+      setServiceName('');
+      setServiceDescription('');
+      setServicePrice('');
+    } catch (error: any) {
+      console.error('Error saving service:', error);
+      toast.error(error.message || 'Erro ao salvar serviço');
     }
-    
-    setServiceName('');
-    setServiceDescription('');
-    setServicePrice('');
   };
 
   const handleEditService = (service: Service) => {
@@ -146,10 +271,21 @@ const Admin = () => {
     setServicePrice(service.price);
   };
 
-  const handleDeleteService = (serviceId: string) => {
-    deleteService(serviceId);
-    setServices(prev => prev.filter(s => s.id !== serviceId));
-    toast.success('Serviço removido');
+  const handleDeleteService = async (serviceId: string) => {
+    try {
+      const { error } = await supabase
+        .from('services')
+        .delete()
+        .eq('id', serviceId);
+
+      if (error) throw error;
+
+      setServices(prev => prev.filter(s => s.id !== serviceId));
+      toast.success('Serviço removido');
+    } catch (error: any) {
+      console.error('Error deleting service:', error);
+      toast.error(error.message || 'Erro ao remover serviço');
+    }
   };
 
   const handleCancelEdit = () => {
@@ -159,7 +295,50 @@ const Admin = () => {
     setServicePrice('');
   };
 
-  if (!currentUser || currentUser.type !== 'admin') return null;
+  const handleDeleteAppointment = async (appointmentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+
+      setAppointments(prev => prev.filter(a => a.id !== appointmentId));
+      toast.success('Agendamento removido');
+    } catch (error: any) {
+      console.error('Error deleting appointment:', error);
+      toast.error(error.message || 'Erro ao remover agendamento');
+    }
+  };
+
+  const handleDeleteClient = async (userId: string) => {
+    try {
+      // Delete user from auth (this will cascade delete profile and roles)
+      const { error } = await supabase.auth.admin.deleteUser(userId);
+
+      if (error) throw error;
+
+      setClients(prev => prev.filter(c => c.user_id !== userId));
+      toast.success('Cliente removido');
+    } catch (error: any) {
+      console.error('Error deleting client:', error);
+      toast.error('Apenas super admins podem remover usuários');
+    }
+  };
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-secondary/20">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || !isAdmin) return null;
 
   const activeAppointments = appointments.filter(a => a.status === 'active');
   const stats = {
@@ -234,7 +413,7 @@ const Admin = () => {
 
           {/* Tabs */}
           <Tabs defaultValue="services" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="services">
                 Serviços
               </TabsTrigger>
@@ -249,9 +428,6 @@ const Admin = () => {
               <TabsTrigger value="clients">
                 <Users className="h-4 w-4 mr-2" />
                 Clientes
-              </TabsTrigger>
-              <TabsTrigger value="settings">
-                Configurações
               </TabsTrigger>
             </TabsList>
 
@@ -361,47 +537,56 @@ const Admin = () => {
                   <CardDescription>Crie novos horários disponíveis para agendamento</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <form onSubmit={handleAddSlot} className="flex gap-4 items-end flex-wrap">
-                    <div className="flex-1 min-w-[200px]">
-                      <Label htmlFor="service">Serviço</Label>
-                      <Select value={newSlotServiceId} onValueChange={setNewSlotServiceId} required>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o serviço" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {services.map((service) => (
-                            <SelectItem key={service.id} value={service.id}>
-                              {service.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex-1 min-w-[150px]">
-                      <Label htmlFor="date">Data</Label>
-                      <Input
-                        id="date"
-                        type="date"
-                        value={newSlotDate}
-                        onChange={(e) => setNewSlotDate(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="flex-1 min-w-[150px]">
-                      <Label htmlFor="time">Horário</Label>
-                      <Input
-                        id="time"
-                        type="time"
-                        value={newSlotTime}
-                        onChange={(e) => setNewSlotTime(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <Button type="submit">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar
-                    </Button>
-                  </form>
+                  {services.length === 0 ? (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Nenhum serviço disponível. Por favor, crie um serviço primeiro na aba "Serviços".
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <form onSubmit={handleAddSlot} className="flex gap-4 items-end flex-wrap">
+                      <div className="flex-1 min-w-[200px]">
+                        <Label htmlFor="service">Serviço</Label>
+                        <Select value={newSlotServiceId} onValueChange={setNewSlotServiceId} required>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o serviço" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {services.map((service) => (
+                              <SelectItem key={service.id} value={service.id}>
+                                {service.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex-1 min-w-[150px]">
+                        <Label htmlFor="date">Data</Label>
+                        <Input
+                          id="date"
+                          type="date"
+                          value={newSlotDate}
+                          onChange={(e) => setNewSlotDate(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="flex-1 min-w-[150px]">
+                        <Label htmlFor="time">Horário</Label>
+                        <Input
+                          id="time"
+                          type="time"
+                          value={newSlotTime}
+                          onChange={(e) => setNewSlotTime(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <Button type="submit">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Adicionar
+                      </Button>
+                    </form>
+                  )}
                 </CardContent>
               </Card>
 
@@ -410,18 +595,21 @@ const Admin = () => {
                   <CardTitle>Todos os Horários</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    {timeSlots.map((slot) => {
-                      const service = services.find(s => s.id === slot.serviceId);
-                      return (
+                  {timeSlots.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-8">
+                      Nenhum horário cadastrado
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {timeSlots.map((slot) => (
                         <div
                           key={slot.id}
                           className="flex items-center justify-between p-3 border border-border rounded-lg"
                         >
                           <div>
-                            <span className="font-medium">{service?.name || 'Serviço removido'}</span>
+                            <span className="font-medium">{slot.services?.name || 'Serviço removido'}</span>
                             <span className="mx-2 text-muted-foreground">•</span>
-                            <span className="font-medium">{slot.date}</span>
+                            <span className="font-medium">{new Date(slot.date).toLocaleDateString('pt-BR')}</span>
                             <span className="mx-2 text-muted-foreground">•</span>
                             <span>{slot.time}</span>
                             <span className="ml-2 text-sm">
@@ -436,9 +624,9 @@ const Admin = () => {
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                      );
-                    })}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -449,31 +637,34 @@ const Admin = () => {
                   <CardTitle>Todos os Agendamentos</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    {activeAppointments.map((appointment) => (
-                      <div
-                        key={appointment.id}
-                        className="flex items-center justify-between p-3 border border-border rounded-lg"
-                      >
-                        <div>
-                          <span className="font-medium">{appointment.serviceName || 'Serviço'}</span>
-                          <span className="mx-2 text-muted-foreground">•</span>
-                          <span className="font-medium">{appointment.clientName}</span>
-                          <span className="mx-2 text-muted-foreground">•</span>
-                          <span>{appointment.date}</span>
-                          <span className="mx-2 text-muted-foreground">•</span>
-                          <span>{appointment.time}</span>
-                        </div>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteAppointment(appointment.id)}
+                  {activeAppointments.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-8">
+                      Nenhum agendamento ativo
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {activeAppointments.map((appointment) => (
+                        <div
+                          key={appointment.id}
+                          className="flex items-center justify-between p-3 border border-border rounded-lg"
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+                        <div>
+                          <p className="font-medium">Cliente</p>
+                          <p className="text-sm text-muted-foreground">
+                            {appointment.services?.name || 'Serviço'} - {appointment.time_slots?.date ? new Date(appointment.time_slots.date).toLocaleDateString('pt-BR') : ''} às {appointment.time_slots?.time || ''}
+                          </p>
+                        </div>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteAppointment(appointment.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -484,81 +675,39 @@ const Admin = () => {
                   <CardTitle>Todos os Clientes</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    {clients.map((client) => (
-                      <div
-                        key={client.id}
-                        className="flex items-center justify-between p-3 border border-border rounded-lg"
-                      >
-                        <div>
-                          <p className="font-medium">{client.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {client.email} • {client.phone}
-                          </p>
-                        </div>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteClient(client.id)}
+                  {clients.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-8">
+                      Nenhum cliente cadastrado
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {clients.map((client) => (
+                        <div
+                          key={client.id}
+                          className="flex items-center justify-between p-3 border border-border rounded-lg"
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="settings">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Configurações de Conta</CardTitle>
-                  <CardDescription>Alterar e-mail e senha do administrador</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleUpdateCredentials} className="space-y-4">
-                    <div>
-                      <Label htmlFor="newEmail">Novo E-mail</Label>
-                      <Input
-                        id="newEmail"
-                        type="email"
-                        placeholder={currentUser?.email}
-                        value={newEmail}
-                        onChange={(e) => setNewEmail(e.target.value)}
-                      />
+                          <div>
+                            <p className="font-medium">{client.name}</p>
+                            <p className="text-sm text-muted-foreground">{client.phone || 'Sem telefone'}</p>
+                          </div>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteClient(client.user_id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <Label htmlFor="newPassword">Nova Senha</Label>
-                      <Input
-                        id="newPassword"
-                        type="password"
-                        placeholder="Digite a nova senha"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="confirmPassword">Confirmar Senha</Label>
-                      <Input
-                        id="confirmPassword"
-                        type="password"
-                        placeholder="Confirme a nova senha"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                      />
-                    </div>
-                    <Button type="submit">
-                      Atualizar Credenciais
-                    </Button>
-                  </form>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
         </div>
       </main>
-
+      
       <Footer />
     </div>
   );
