@@ -14,6 +14,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/dateUtils';
 
 interface Service {
   id: string;
@@ -717,7 +720,7 @@ const Admin = () => {
                           <div>
                             <span className="font-medium">{slot.services?.name || 'Serviço removido'}</span>
                             <span className="mx-2 text-muted-foreground">•</span>
-                            <span className="font-medium">{new Date(slot.date).toLocaleDateString('pt-BR')}</span>
+                            <span className="font-medium">{formatDateShort(slot.date)}</span>
                             <span className="mx-2 text-muted-foreground">•</span>
                             <span>{slot.time}</span>
                             <span className="ml-2 text-sm">
@@ -759,7 +762,7 @@ const Admin = () => {
                         <div>
                           <p className="font-medium">Cliente</p>
                           <p className="text-sm text-muted-foreground">
-                            {appointment.services?.name || 'Serviço'} - {appointment.time_slots?.date ? new Date(appointment.time_slots.date).toLocaleDateString('pt-BR') : ''} às {appointment.time_slots?.time || ''}
+                            {appointment.services?.name || 'Serviço'} - {appointment.time_slots?.date ? formatDateShort(appointment.time_slots.date) : ''} às {appointment.time_slots?.time || ''}
                           </p>
                         </div>
                           <Button

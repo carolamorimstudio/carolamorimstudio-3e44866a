@@ -8,6 +8,9 @@ import { Calendar, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/dateUtils';
 
 interface Service {
   id: string;
@@ -351,7 +354,7 @@ const Agendamentos = () => {
                         <Calendar className="h-5 w-5 text-primary" />
                         <div>
                           <p className="font-bold text-primary">{appointment.services?.name}</p>
-                          <p className="font-semibold">{appointment.time_slots?.date}</p>
+                          <p className="font-semibold">{appointment.time_slots?.date ? formatDateShort(appointment.time_slots.date) : ''}</p>
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
                             <Clock className="h-4 w-4" />
                             {appointment.time_slots?.time}
@@ -400,7 +403,7 @@ const Agendamentos = () => {
                           className="p-4 border border-border rounded-lg bg-card hover:shadow-md transition-shadow"
                         >
                           <div className="mb-3">
-                            <p className="font-semibold">{slot.date}</p>
+                            <p className="font-semibold">{formatDateShort(slot.date)}</p>
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <Clock className="h-4 w-4" />
                               {slot.time}
