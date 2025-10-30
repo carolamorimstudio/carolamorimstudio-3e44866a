@@ -33,14 +33,6 @@ const Cadastro = () => {
     setSubmitting(true);
     
     try {
-      const captchaToken = await executeRecaptcha();
-      
-      if (!captchaToken) {
-        toast.error('Erro ao validar CAPTCHA. Tente novamente.');
-        setSubmitting(false);
-        return;
-      }
-
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -49,8 +41,7 @@ const Cadastro = () => {
             name,
             phone
           },
-          emailRedirectTo: `${window.location.origin}/`,
-          captchaToken
+          emailRedirectTo: `${window.location.origin}/`
         }
       });
 

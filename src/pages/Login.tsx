@@ -35,20 +35,9 @@ const Login = () => {
     setSubmitting(true);
     
     try {
-      const captchaToken = await executeRecaptcha();
-      
-      if (!captchaToken) {
-        toast.error('Erro ao validar CAPTCHA. Tente novamente.');
-        setSubmitting(false);
-        return;
-      }
-
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        password,
-        options: {
-          captchaToken
-        }
+        password
       });
 
       if (error) {
