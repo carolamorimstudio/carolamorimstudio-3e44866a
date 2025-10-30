@@ -177,6 +177,16 @@ const Admin = () => {
 
   const loadClients = async () => {
     try {
+      // Load admin user IDs to filter them out
+      const { data: adminRoles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+
+      if (rolesError) throw rolesError;
+
+      const adminUserIds = new Set(adminRoles?.map(r => r.user_id) || []);
+
       // Load profiles
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
@@ -192,11 +202,13 @@ const Admin = () => {
 
       if (privateError) throw privateError;
 
-      // Merge the data
-      const mergedClients = (profilesData || []).map(profile => ({
-        ...profile,
-        profiles_private: privateData?.find(pd => pd.user_id === profile.user_id) || null
-      }));
+      // Merge the data and filter out admins
+      const mergedClients = (profilesData || [])
+        .filter(profile => !adminUserIds.has(profile.user_id))
+        .map(profile => ({
+          ...profile,
+          profiles_private: privateData?.find(pd => pd.user_id === profile.user_id) || null
+        }));
 
       setClients(mergedClients);
     } catch (error) {
