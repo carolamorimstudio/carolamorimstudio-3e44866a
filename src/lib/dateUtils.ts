@@ -27,28 +27,25 @@ export function formatDateFromDB(dateString: string): string {
 export function formatDateShort(dateString: string): string {
   if (!dateString) return '';
   
-  console.log('🔄 formatDateShort recebeu:', dateString);
-  
   // Remove qualquer informação de hora se existir (ex: "2024-03-15T00:00:00")
   const dateOnly = dateString.split('T')[0];
-  console.log('📋 Data limpa:', dateOnly);
   
   // Parse manual para evitar timezone UTC
-  const [year, month, day] = dateOnly.split('-').map(Number);
-  console.log('🔢 Valores parseados:', { year, month, day });
+  const parts = dateOnly.split('-');
+  if (parts.length !== 3) return dateString;
+  
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const day = parseInt(parts[2], 10);
   
   // Verifica se os valores são válidos
   if (isNaN(year) || isNaN(month) || isNaN(day)) {
-    console.error('❌ Invalid date string:', dateString);
     return dateString;
   }
   
-  // Cria data local (sem conversão UTC)
-  const localDate = new Date(year, month - 1, day);
-  console.log('📅 Data local criada:', localDate.toLocaleDateString('pt-BR'));
+  // Retorna formatação direta sem usar Date() para evitar qualquer conversão de timezone
+  const dayStr = day.toString().padStart(2, '0');
+  const monthStr = month.toString().padStart(2, '0');
   
-  const formatted = format(localDate, 'dd/MM/yyyy', { locale: ptBR });
-  console.log('✨ Data formatada:', formatted);
-  
-  return formatted;
+  return `${dayStr}/${monthStr}/${year}`;
 }
