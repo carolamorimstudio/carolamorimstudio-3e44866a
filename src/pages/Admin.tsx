@@ -734,18 +734,7 @@ const Admin = () => {
                     </p>
                   ) : (
                      <div className="space-y-2">
-                      {timeSlots.map((slot) => {
-                        console.log('🎨 RENDERIZANDO SLOT NO ADMIN:', {
-                          slot_id: slot.id,
-                          data_raw: slot.date,
-                          tipo: typeof slot.date,
-                          servico: slot.services?.name
-                        });
-                        
-                        const dataFormatada = formatDateShort(slot.date);
-                        console.log('🎨 Data formatada para exibição:', dataFormatada);
-                        
-                        return (
+                      {timeSlots.map((slot) => (
                           <div
                             key={slot.id}
                             className="flex items-center justify-between p-3 border border-border rounded-lg"
@@ -753,7 +742,7 @@ const Admin = () => {
                             <div>
                               <span className="font-medium">{slot.services?.name || 'Serviço removido'}</span>
                               <span className="mx-2 text-muted-foreground">•</span>
-                              <span className="font-medium">{dataFormatada}</span>
+                              <span className="font-medium">{formatDateShort(slot.date)}</span>
                               <span className="mx-2 text-muted-foreground">•</span>
                               <span>{slot.time}</span>
                               <span className="ml-2 text-sm">
@@ -768,8 +757,7 @@ const Admin = () => {
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                        );
-                      })}
+                        ))}
                     </div>
                   )}
                 </CardContent>

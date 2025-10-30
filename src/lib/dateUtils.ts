@@ -26,34 +26,18 @@ export function formatDateFromDB(dateString: string): string {
  * NUNCA muda o dia selecionado
  */
 export function formatDateShort(dateString: string): string {
-  if (!dateString) {
-    console.warn('⚠️ formatDateShort: string vazia recebida');
-    return '';
-  }
-  
-  console.log('🔍 formatDateShort INÍCIO:', {
-    input: dateString,
-    tipo: typeof dateString,
-    length: dateString.length
-  });
+  if (!dateString) return '';
   
   // Remove qualquer informação de hora se existir
   const dateOnly = dateString.split('T')[0];
-  console.log('📅 Após remover hora:', dateOnly);
   
-  // Parse direto da string - SEM parseInt, SEM Number, apenas string manipulation
+  // Parse direto da string - apenas string manipulation
   const [year, month, day] = dateOnly.split('-');
   
-  console.log('📊 Partes da data:', { year, month, day });
-  
   if (!year || !month || !day) {
-    console.error('❌ Partes inválidas!');
     return dateString;
   }
   
   // Retorna formatação direta - 100% string manipulation
-  const resultado = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
-  console.log('✅ formatDateShort RESULTADO:', resultado);
-  
-  return resultado;
+  return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
 }
