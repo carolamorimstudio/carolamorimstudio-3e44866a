@@ -9,6 +9,7 @@ import { Footer } from '@/components/Footer';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useRecaptcha } from '@/hooks/useRecaptcha';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const { isReady: recaptchaReady, executeRecaptcha } = useRecaptcha();
 
   // Redirect authenticated users
   useEffect(() => {
@@ -33,9 +35,20 @@ const Login = () => {
     setSubmitting(true);
     
     try {
+      const captchaToken = await executeRecaptcha();
+      
+      if (!captchaToken) {
+        toast.error('Erro ao validar CAPTCHA. Tente novamente.');
+        setSubmitting(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        password
+        password,
+        options: {
+          captchaToken
+        }
       });
 
       if (error) {
