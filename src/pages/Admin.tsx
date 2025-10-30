@@ -432,15 +432,33 @@ const Admin = () => {
 
   const handleDeleteClient = async (userId: string) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('user_id', userId);
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast.error('Você precisa estar autenticado');
+        return;
+      }
 
-      if (error) throw error;
+      const response = await fetch(
+        'https://gsvaitbqkmrsdswzfrmh.supabase.co/functions/v1/delete-user',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao remover cliente');
+      }
 
       setClients(prev => prev.filter(c => c.user_id !== userId));
-      toast.success('Cliente removido');
+      toast.success('Cliente removido completamente do sistema');
     } catch (error: any) {
       console.error('Error deleting client:', error);
       toast.error(error.message || 'Erro ao remover cliente');
