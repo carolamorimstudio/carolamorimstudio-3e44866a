@@ -155,6 +155,12 @@ const Admin = () => {
         .order('time', { ascending: true });
 
       if (error) throw error;
+      
+      if (data && data.length > 0) {
+        console.log('📥 Primeira data do banco:', data[0].date, 'Tipo:', typeof data[0].date);
+        console.log('🔍 Exemplo de formatação:', formatDateShort(data[0].date));
+      }
+      
       setTimeSlots((data || []) as TimeSlot[]);
     } catch (error) {
       console.error('Error loading time slots:', error);
@@ -279,6 +285,8 @@ const Admin = () => {
     }
     
     try {
+      console.log('📅 Salvando data:', newSlotDate, 'Tipo:', typeof newSlotDate);
+      
       const { data, error } = await supabase
         .from('time_slots')
         .insert({
@@ -292,6 +300,8 @@ const Admin = () => {
 
       if (error) throw error;
 
+      console.log('✅ Data salva no banco:', data.date, 'Tipo:', typeof data.date);
+      
       setTimeSlots(prev => [...prev, data as TimeSlot]);
       setNewSlotDate('');
       setNewSlotTime('');
