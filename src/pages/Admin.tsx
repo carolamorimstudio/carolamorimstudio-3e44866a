@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { Calendar, Users, Clock, Trash2, Plus, AlertCircle, Settings } from 'lucide-react';
+import { Calendar, Users, Clock, Trash2, Plus, AlertCircle, Settings, Image as ImageIcon, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -42,6 +42,13 @@ interface Appointment {
   status: 'active' | 'cancelled';
   services?: Service;
   time_slots?: TimeSlot;
+  profiles?: {
+    name: string;
+    user_id: string;
+    profiles_private?: {
+      phone: string | null;
+    };
+  };
 }
 
 interface Profile {
@@ -79,6 +86,14 @@ const Admin = () => {
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // States for logo and gallery
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoUrl, setLogoUrl] = useState('');
+  const [galleryImages, setGalleryImages] = useState<any[]>([]);
+  const [galleryTitle, setGalleryTitle] = useState('');
+  const [galleryDescription, setGalleryDescription] = useState('');
+  const [galleryFile, setGalleryFile] = useState<File | null>(null);
 
   // Redirect if not admin
   useEffect(() => {
@@ -126,13 +141,38 @@ const Admin = () => {
         loadTimeSlots(),
         loadAppointments(),
         loadClients(),
-        loadSiteSettings()
+        loadSiteSettings(),
+        loadLogo(),
+        loadGallery()
       ]);
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Erro ao carregar dados');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadLogo = async () => {
+    try {
+      const { data, error } = await supabase.storage.from('logo').list('', { limit: 1 });
+      if (error) throw error;
+      if (data && data.length > 0) {
+        const { data: { publicUrl } } = supabase.storage.from('logo').getPublicUrl(data[0].name);
+        setLogoUrl(publicUrl);
+      }
+    } catch (error) {
+      console.error('Error loading logo:', error);
+    }
+  };
+
+  const loadGallery = async () => {
+    try {
+      const { data, error } = await supabase.from('gallery').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      setGalleryImages(data || []);
+    } catch (error) {
+      console.error('Error loading gallery:', error);
     }
   };
 
@@ -169,14 +209,40 @@ const Admin = () => {
 
   const loadAppointments = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: appointmentsData, error } = await supabase
         .from('appointments')
         .select('*, services(*), time_slots(*)')
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setAppointments((data || []) as Appointment[]);
+
+      // Load client profiles for each appointment
+      const appointmentsWithProfiles = await Promise.all(
+        (appointmentsData || []).map(async (apt) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('name, user_id')
+            .eq('user_id', apt.client_id)
+            .single();
+
+          const { data: privateData } = await supabase
+            .from('profiles_private')
+            .select('phone')
+            .eq('user_id', apt.client_id)
+            .single();
+
+          return {
+            ...apt,
+            profiles: profile ? {
+              ...profile,
+              profiles_private: privateData
+            } : undefined
+          };
+        })
+      );
+
+      setAppointments(appointmentsWithProfiles as Appointment[]);
     } catch (error) {
       console.error('Error loading appointments:', error);
       toast.error('Erro ao carregar agendamentos');
@@ -522,6 +588,90 @@ const Admin = () => {
     }
   };
 
+  const handleLogoUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!logoFile) {
+      toast.error('Selecione uma imagem');
+      return;
+    }
+
+    try {
+      const { data: existingFiles } = await supabase.storage.from('logo').list('');
+      if (existingFiles && existingFiles.length > 0) {
+        await supabase.storage.from('logo').remove(existingFiles.map(f => f.name));
+      }
+
+      const fileName = `logo-${Date.now()}.${logoFile.name.split('.').pop()}`;
+      const { error: uploadError } = await supabase.storage.from('logo').upload(fileName, logoFile);
+
+      if (uploadError) throw uploadError;
+
+      toast.success('Logo atualizada com sucesso!');
+      setLogoFile(null);
+      await loadLogo();
+    } catch (error: any) {
+      console.error('Error uploading logo:', error);
+      toast.error(error.message || 'Erro ao fazer upload da logo');
+    }
+  };
+
+  const handleGalleryUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!galleryFile) {
+      toast.error('Selecione uma imagem');
+      return;
+    }
+
+    try {
+      const fileName = `gallery-${Date.now()}.${galleryFile.name.split('.').pop()}`;
+      const { error: uploadError } = await supabase.storage
+        .from('gallery')
+        .upload(fileName, galleryFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('gallery').getPublicUrl(fileName);
+
+      const { error: dbError } = await supabase.from('gallery').insert({
+        image_url: publicUrl,
+        title: galleryTitle || null,
+        description: galleryDescription || null
+      });
+
+      if (dbError) throw dbError;
+
+      toast.success('Imagem adicionada à galeria!');
+      setGalleryFile(null);
+      setGalleryTitle('');
+      setGalleryDescription('');
+      await loadGallery();
+    } catch (error: any) {
+      console.error('Error uploading to gallery:', error);
+      toast.error(error.message || 'Erro ao fazer upload da imagem');
+    }
+  };
+
+  const handleDeleteGalleryImage = async (imageId: string, imageUrl: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta imagem?')) return;
+
+    try {
+      const fileName = imageUrl.split('/').pop();
+      
+      if (fileName) {
+        await supabase.storage.from('gallery').remove([fileName]);
+      }
+
+      const { error } = await supabase.from('gallery').delete().eq('id', imageId);
+      if (error) throw error;
+
+      toast.success('Imagem excluída com sucesso!');
+      await loadGallery();
+    } catch (error: any) {
+      console.error('Error deleting gallery image:', error);
+      toast.error(error.message || 'Erro ao excluir imagem');
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-secondary/20">
@@ -624,6 +774,14 @@ const Admin = () => {
               <TabsTrigger value="clients" className="flex items-center gap-1 py-2 px-3 flex-1 min-w-[100px]">
                 <Users className="h-4 w-4" />
                 <span className="text-xs md:text-sm">Clientes</span>
+              </TabsTrigger>
+              <TabsTrigger value="logo" className="flex items-center gap-1 py-2 px-3 flex-1 min-w-[100px]">
+                <Upload className="h-4 w-4" />
+                <span className="text-xs md:text-sm">Logo</span>
+              </TabsTrigger>
+              <TabsTrigger value="gallery" className="flex items-center gap-1 py-2 px-3 flex-1 min-w-[100px]">
+                <ImageIcon className="h-4 w-4" />
+                <span className="text-xs md:text-sm">Galeria</span>
               </TabsTrigger>
               <TabsTrigger value="settings" className="flex items-center gap-1 py-2 px-3 flex-1 min-w-[100px]">
                 <Settings className="h-4 w-4" />
@@ -846,11 +1004,17 @@ const Admin = () => {
                       {activeAppointments.map((appointment) => (
                         <div
                           key={appointment.id}
-                          className="flex items-center justify-between p-3 border border-border rounded-lg"
+                          className="flex items-center justify-between p-4 border border-border rounded-lg"
                         >
-                        <div>
-                          <p className="font-medium">Cliente</p>
+                        <div className="flex-1">
+                          <p className="font-semibold">{appointment.profiles?.name || 'Cliente'}</p>
                           <p className="text-sm text-muted-foreground">
+                            📧 Email: disponível no painel de clientes
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            📞 {appointment.profiles?.profiles_private?.phone || 'Sem telefone'}
+                          </p>
+                          <p className="text-sm text-primary font-medium mt-2">
                             {appointment.services?.name || 'Serviço'} - {appointment.time_slots?.date ? formatDateShort(appointment.time_slots.date) : ''} às {appointment.time_slots?.time || ''}
                           </p>
                         </div>
@@ -897,6 +1061,129 @@ const Admin = () => {
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Logo Tab */}
+            <TabsContent value="logo" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Logo do Site</CardTitle>
+                  <CardDescription>
+                    Faça upload da logo que aparecerá no header do site
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {logoUrl && (
+                    <div className="flex justify-center">
+                      <img src={logoUrl} alt="Logo atual" className="max-h-32 object-contain" />
+                    </div>
+                  )}
+                  <form onSubmit={handleLogoUpload} className="space-y-4">
+                    <div>
+                      <Label htmlFor="logoFile">Selecionar Nova Logo</Label>
+                      <Input
+                        id="logoFile"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Recomendado: PNG ou SVG com fundo transparente
+                      </p>
+                    </div>
+                    <Button type="submit" disabled={!logoFile}>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Fazer Upload
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Gallery Tab */}
+            <TabsContent value="gallery" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Adicionar Imagem à Galeria</CardTitle>
+                  <CardDescription>
+                    Adicione fotos do seu trabalho para clientes visualizarem
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleGalleryUpload} className="space-y-4">
+                    <div>
+                      <Label htmlFor="galleryTitle">Título (opcional)</Label>
+                      <Input
+                        id="galleryTitle"
+                        type="text"
+                        placeholder="Ex: Extensão de Cílios Volume Russo"
+                        value={galleryTitle}
+                        onChange={(e) => setGalleryTitle(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="galleryDescription">Descrição (opcional)</Label>
+                      <Textarea
+                        id="galleryDescription"
+                        placeholder="Descreva o trabalho..."
+                        value={galleryDescription}
+                        onChange={(e) => setGalleryDescription(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="galleryFile">Selecionar Imagem</Label>
+                      <Input
+                        id="galleryFile"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setGalleryFile(e.target.files?.[0] || null)}
+                        required
+                      />
+                    </div>
+                    <Button type="submit" disabled={!galleryFile}>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Adicionar à Galeria
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Todas as Imagens da Galeria</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {galleryImages.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-8">
+                      Nenhuma imagem na galeria
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {galleryImages.map((image) => (
+                        <div key={image.id} className="relative group">
+                          <img 
+                            src={image.image_url} 
+                            alt={image.title || 'Gallery'} 
+                            className="w-full h-40 object-cover rounded-lg"
+                          />
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeleteGalleryImage(image.id, image.image_url)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          {image.title && (
+                            <p className="text-sm font-medium mt-2">{image.title}</p>
+                          )}
                         </div>
                       ))}
                     </div>
