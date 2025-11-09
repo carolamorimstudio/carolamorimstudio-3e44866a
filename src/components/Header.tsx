@@ -2,10 +2,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { LogOut, User, Calendar, ImageIcon } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useLogo } from '@/hooks/useLogo';
 
 export const Header = () => {
   const navigate = useNavigate();
   const { user, isAdmin, signOut } = useAuth();
+  const { logoUrl } = useLogo();
 
   const handleLogout = async () => {
     try {
@@ -20,7 +22,14 @@ export const Header = () => {
   return (
     <header className="border-b border-border bg-card shadow-sm">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-3">
+          {logoUrl && (
+            <img 
+              src={logoUrl} 
+              alt="Logo Carol Amorim Studio" 
+              className="h-12 w-12 object-contain"
+            />
+          )}
           <h1 className="text-2xl md:text-3xl font-serif italic text-primary">
             Carol Amorim Studio
           </h1>

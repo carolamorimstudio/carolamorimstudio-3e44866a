@@ -49,12 +49,14 @@ interface Appointment {
       phone: string | null;
     };
   };
+  client_email?: string;
 }
 
 interface Profile {
   id: string;
   user_id: string;
   name: string;
+  email?: string;
   profiles_private?: {
     phone: string | null;
   };
@@ -217,7 +219,7 @@ const Admin = () => {
 
       if (error) throw error;
 
-      // Load client profiles for each appointment
+      // Load client profiles and email for each appointment
       const appointmentsWithProfiles = await Promise.all(
         (appointmentsData || []).map(async (apt) => {
           const { data: profile } = await supabase
@@ -232,12 +234,16 @@ const Admin = () => {
             .eq('user_id', apt.client_id)
             .single();
 
+          // Get user email from auth.users via admin API
+          const { data: { user: authUser } } = await supabase.auth.admin.getUserById(apt.client_id);
+
           return {
             ...apt,
             profiles: profile ? {
               ...profile,
               profiles_private: privateData
-            } : undefined
+            } : undefined,
+            client_email: authUser?.email || 'Email não disponível'
           };
         })
       );
@@ -276,15 +282,22 @@ const Admin = () => {
 
       if (privateError) throw privateError;
 
-      // Merge the data and filter out admins
-      const mergedClients = (profilesData || [])
-        .filter(profile => !adminUserIds.has(profile.user_id))
-        .map(profile => ({
-          ...profile,
-          profiles_private: privateData?.find(pd => pd.user_id === profile.user_id) || null
-        }));
+      // Get emails from auth.users for all clients
+      const clientsWithEmails = await Promise.all(
+        (profilesData || [])
+          .filter(profile => !adminUserIds.has(profile.user_id))
+          .map(async (profile) => {
+            const { data: { user: authUser } } = await supabase.auth.admin.getUserById(profile.user_id);
+            
+            return {
+              ...profile,
+              email: authUser?.email || 'Email não disponível',
+              profiles_private: privateData?.find(pd => pd.user_id === profile.user_id) || null
+            };
+          })
+      );
 
-      setClients(mergedClients);
+      setClients(clientsWithEmails);
     } catch (error) {
       console.error('Error loading clients:', error);
       toast.error('Erro ao carregar clientes');
@@ -612,6 +625,22 @@ const Admin = () => {
     } catch (error: any) {
       console.error('Error uploading logo:', error);
       toast.error(error.message || 'Erro ao fazer upload da logo');
+    }
+  };
+
+  const handleDeleteLogo = async () => {
+    try {
+      const { data: existingFiles } = await supabase.storage.from('logo').list('');
+      if (existingFiles && existingFiles.length > 0) {
+        await supabase.storage.from('logo').remove(existingFiles.map(f => f.name));
+      }
+      
+      toast.success('Logo removida com sucesso!');
+      setLogoUrl('');
+      await loadLogo();
+    } catch (error: any) {
+      console.error('Error deleting logo:', error);
+      toast.error(error.message || 'Erro ao remover logo');
     }
   };
 
@@ -1000,16 +1029,16 @@ const Admin = () => {
                       Nenhum agendamento ativo
                     </p>
                   ) : (
-                    <div className="space-y-2">
+                     <div className="space-y-2">
                       {activeAppointments.map((appointment) => (
                         <div
                           key={appointment.id}
                           className="flex items-center justify-between p-4 border border-border rounded-lg"
                         >
                         <div className="flex-1">
-                          <p className="font-semibold">{appointment.profiles?.name || 'Cliente'}</p>
-                          <p className="text-sm text-muted-foreground">
-                            📧 Email: disponível no painel de clientes
+                          <p className="font-semibold text-lg">{appointment.profiles?.name || 'Cliente'}</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            📧 {appointment.client_email}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             📞 {appointment.profiles?.profiles_private?.phone || 'Sem telefone'}
@@ -1048,11 +1077,16 @@ const Admin = () => {
                       {clients.map((client) => (
                         <div
                           key={client.id}
-                          className="flex items-center justify-between p-3 border border-border rounded-lg"
+                          className="flex items-center justify-between p-4 border border-border rounded-lg"
                         >
-                          <div>
-                            <p className="font-medium">{client.name}</p>
-                            <p className="text-sm text-muted-foreground">{client.profiles_private?.phone || 'Sem telefone'}</p>
+                          <div className="flex-1">
+                            <p className="font-semibold text-lg">{client.name}</p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              📧 {client.email}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              📞 {client.profiles_private?.phone || 'Sem telefone'}
+                            </p>
                           </div>
                           <Button
                             variant="destructive"
@@ -1080,8 +1114,20 @@ const Admin = () => {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {logoUrl && (
-                    <div className="flex justify-center">
-                      <img src={logoUrl} alt="Logo atual" className="max-h-32 object-contain" />
+                    <div className="p-4 border rounded-lg bg-secondary/20 space-y-4">
+                      <div className="flex flex-col items-center">
+                        <p className="text-sm font-medium mb-2">Logo Atual:</p>
+                        <img src={logoUrl} alt="Logo atual" className="max-h-32 object-contain mb-3" />
+                      </div>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={handleDeleteLogo}
+                        className="w-full"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remover Logo
+                      </Button>
                     </div>
                   )}
                   <form onSubmit={handleLogoUpload} className="space-y-4">
@@ -1094,12 +1140,12 @@ const Admin = () => {
                         onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Recomendado: PNG ou SVG com fundo transparente
+                        Recomendado: PNG ou SVG com fundo transparente. A logo aparecerá no header de todas as páginas.
                       </p>
                     </div>
                     <Button type="submit" disabled={!logoFile}>
                       <Upload className="h-4 w-4 mr-2" />
-                      Fazer Upload
+                      {logoUrl ? 'Alterar Logo' : 'Fazer Upload'}
                     </Button>
                   </form>
                 </CardContent>
