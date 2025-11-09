@@ -224,7 +224,7 @@ const Admin = () => {
         (appointmentsData || []).map(async (apt) => {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('name, user_id')
+            .select('name, user_id, email')
             .eq('user_id', apt.client_id)
             .single();
 
@@ -234,16 +234,13 @@ const Admin = () => {
             .eq('user_id', apt.client_id)
             .single();
 
-          // Get user email from auth.users via admin API
-          const { data: { user: authUser } } = await supabase.auth.admin.getUserById(apt.client_id);
-
           return {
             ...apt,
             profiles: profile ? {
               ...profile,
               profiles_private: privateData
             } : undefined,
-            client_email: authUser?.email || 'Email não disponível'
+            client_email: profile?.email || 'Email não disponível'
           };
         })
       );
@@ -267,37 +264,30 @@ const Admin = () => {
 
       const adminUserIds = new Set(adminRoles?.map(r => r.user_id) || []);
 
-      // Load profiles
+      // Load profiles with email
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*, email')
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
 
-      // Load private data for admins
+      // Load private data
       const { data: privateData, error: privateError } = await supabase
         .from('profiles_private')
         .select('user_id, phone');
 
       if (privateError) throw privateError;
 
-      // Get emails from auth.users for all clients
-      const clientsWithEmails = await Promise.all(
-        (profilesData || [])
-          .filter(profile => !adminUserIds.has(profile.user_id))
-          .map(async (profile) => {
-            const { data: { user: authUser } } = await supabase.auth.admin.getUserById(profile.user_id);
-            
-            return {
-              ...profile,
-              email: authUser?.email || 'Email não disponível',
-              profiles_private: privateData?.find(pd => pd.user_id === profile.user_id) || null
-            };
-          })
-      );
+      // Merge data and filter out admins
+      const mergedClients = (profilesData || [])
+        .filter(profile => !adminUserIds.has(profile.user_id))
+        .map(profile => ({
+          ...profile,
+          profiles_private: privateData?.find(pd => pd.user_id === profile.user_id) || null
+        }));
 
-      setClients(clientsWithEmails);
+      setClients(mergedClients);
     } catch (error) {
       console.error('Error loading clients:', error);
       toast.error('Erro ao carregar clientes');
