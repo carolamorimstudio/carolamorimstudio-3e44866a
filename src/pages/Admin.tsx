@@ -47,6 +47,7 @@ interface Appointment {
     user_id: string;
     profiles_private?: {
       phone: string | null;
+      email: string | null;
     };
   };
   client_email?: string;
@@ -59,6 +60,7 @@ interface Profile {
   email?: string;
   profiles_private?: {
     phone: string | null;
+    email: string | null;
   };
 }
 
@@ -224,13 +226,13 @@ const Admin = () => {
         (appointmentsData || []).map(async (apt) => {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('name, user_id, email')
+            .select('name, user_id')
             .eq('user_id', apt.client_id)
             .single();
 
           const { data: privateData } = await supabase
             .from('profiles_private')
-            .select('phone')
+            .select('phone, email')
             .eq('user_id', apt.client_id)
             .single();
 
@@ -240,7 +242,7 @@ const Admin = () => {
               ...profile,
               profiles_private: privateData
             } : undefined,
-            client_email: profile?.email || 'Email não disponível'
+            client_email: privateData?.email || 'Email não disponível'
           };
         })
       );
@@ -264,28 +266,32 @@ const Admin = () => {
 
       const adminUserIds = new Set(adminRoles?.map(r => r.user_id) || []);
 
-      // Load profiles with email
+      // Load profiles (without email)
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('*, email')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
 
-      // Load private data
+      // Load private data (including email)
       const { data: privateData, error: privateError } = await supabase
         .from('profiles_private')
-        .select('user_id, phone');
+        .select('user_id, phone, email');
 
       if (privateError) throw privateError;
 
       // Merge data and filter out admins
       const mergedClients = (profilesData || [])
         .filter(profile => !adminUserIds.has(profile.user_id))
-        .map(profile => ({
-          ...profile,
-          profiles_private: privateData?.find(pd => pd.user_id === profile.user_id) || null
-        }));
+        .map(profile => {
+          const privateInfo = privateData?.find(pd => pd.user_id === profile.user_id);
+          return {
+            ...profile,
+            email: privateInfo?.email,
+            profiles_private: privateInfo || null
+          };
+        });
 
       setClients(mergedClients);
     } catch (error) {
